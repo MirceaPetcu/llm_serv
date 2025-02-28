@@ -187,5 +187,5 @@ For more details, see the complete example in ``examples/example_client.py``.
 - [ ] Add proper logging
 - [ ] Add tests
 - [ ] Add proper documentation
-- [ ] Add better healthcheck with uptime and token count
-- [ ] Add better credentials check at initialization
+- [X] Add better healthcheck with uptime and token count
+- [X] Add better credentials check at initialization

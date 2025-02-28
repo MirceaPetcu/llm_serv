@@ -160,7 +160,7 @@ def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str
 
     def generate_instructions() -> list[str]:
         return [
-            "\nFormatting instructions: respond without any other explanations or comments, prepended or appended to the <structured_response> opening and closingtags. Pay attention that all fields are attended to, and properly enclosed within their own opening and closing tags.\n"
+            "\nRespond without any other explanations or comments, prepended or appended to the <structured_response> opening and closing tags. Pay attention that all fields are attended to, and properly enclosed within their own tags.\n Here is an example of the output format:\n"
         ]
 
     def generate_example_xml(
