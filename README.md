@@ -174,10 +174,13 @@ For more details, see the complete example in ``examples/example_client.py``.
 ## TODOs
 
 - [x] Add OpenAI support
+- [ ] Fix async support for OpenAI, single instance client or several clients?
+- [ ] Use common async retry logic, not one for each provider
+- [ ] Add Mistral support
 - [ ] Add Anthropic support
 - [ ] Add streaming support
 - [ ] Add caching support
-- [ ] Add local LLM support 
+- [ ] Add local LLM support - Won't do. 
 - [ ] Restore image capabilities
 - [ ] Restore document capabilities
 - [X] Add XML lazy structured output support

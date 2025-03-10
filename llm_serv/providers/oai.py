@@ -1,10 +1,12 @@
+"""
+TODO: Fix code, https://github.com/openai/openai-python/issues/874
+"""
 import os
 import time
 import asyncio
 
 from openai import AsyncOpenAI
 from pydantic import Field
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.image import Image
