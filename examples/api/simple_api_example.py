@@ -31,40 +31,75 @@
     5. Send the request and get response
 """
 
+import asyncio
+import os
 from rich import print as rprint
 
 from llm_serv.api import get_llm_service
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.providers.base import LLMRequest
 from llm_serv.registry import REGISTRY
+from llm_serv.exceptions import ServiceCallException, TimeoutException
 
-# 1. List available providers
-print("\nAvailable Providers:")
-providers = REGISTRY.providers
-for provider in providers:
-    rprint(f"- {provider}")
 
-# 2. List available models
-print("\nAvailable Models:")
-models = REGISTRY.models
-for model in models:
-    rprint(model)
+async def main():
+    # 1. List available providers
+    print("\nAvailable Providers:")
+    providers = REGISTRY.providers
+    for provider in providers:
+        rprint(f"- {provider}")
 
-# 3. Select a model and create service
-model = REGISTRY.get_model(provider="OPENAI", name="gpt-4o-mini")
-llm_service = get_llm_service(model)
+    # 2. List available models
+    print("\nAvailable Models:")
+    models = REGISTRY.models
+    for model in models:
+        rprint(model)
 
-# 4. Create conversation and request
-conversation = Conversation.from_prompt("What's 1+1?")
-request = LLMRequest(conversation=conversation)
+    # Check if we have the necessary credentials
+    provider = "OPENAI"
+    model_name = "gpt-4o-mini"
+    
+    # Check OpenAI API key
+    if not os.getenv("OPENAI_API_KEY"):
+        print("\nWarning: OPENAI_API_KEY environment variable is not set.")
+        print("Please set it to run this example with OpenAI models.")
+        return
 
-# 5. Get response
-response = llm_service(request)
+    # 3. Select a model and create service
+    try:
+        model = REGISTRY.get_model(provider=provider, name=model_name)
+        print(f"\nSelected model: {provider}/{model_name}")
+        
+        # Set a timeout for service creation
+        llm_service = await asyncio.wait_for(get_llm_service(model), timeout=10.0)
+        print("Service created successfully")
+        
+        # 4. Create conversation and request
+        conversation = Conversation.from_prompt("What's 1+1?")
+        request = LLMRequest(conversation=conversation)
+        print("Request created")
+        
+        # 5. Get response with a timeout
+        print("Sending request to API...")
+        try:
+            response = await asyncio.wait_for(llm_service(request), timeout=30.0)
+            
+            print("\nResponse:")
+            print(response.output)
+            
+            print("\nToken Usage:")
+            print(f"Input tokens: {response.tokens.input_tokens}")
+            print(f"Output tokens: {response.tokens.completion_tokens}")
+            print(f"Total tokens: {response.tokens.total_tokens}")
+            
+        except asyncio.TimeoutError:
+            print("Request timed out after 30 seconds")
+        except ServiceCallException as e:
+            print(f"Service call error: {e}")
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
 
-print("\nResponse:")
-print(response.output)
 
-print("\nToken Usage:")
-print(f"Input tokens: {response.tokens.input_tokens}")
-print(f"Output tokens: {response.tokens.completion_tokens}")
-print(f"Total tokens: {response.tokens.total_tokens}")
+if __name__ == "__main__":
+    asyncio.run(main())

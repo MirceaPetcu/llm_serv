@@ -1,10 +1,12 @@
 import os
+import time
+import asyncio
 
 import boto3
 from dotenv import load_dotenv
 from pydantic import Field
 from rich import print
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.role import Role
@@ -165,9 +167,37 @@ class AWSLLMService(LLMService):
             return messages, system, config
         except Exception as e:
             raise InternalConversionException(f"Failed to convert request for AWS: {str(e)}") from e
+    
+    @staticmethod
+    async def async_retry(func, *args, **kwargs):
+        max_attempts = 5
+        attempt = 0
+        last_exception = None
+        start_time = time.time()
+        
+        while attempt < max_attempts:
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                attempt += 1
+                last_exception = e
+                
+                # Handle throttling specifically
+                if hasattr(e, "response") and e.response["ResponseMetadata"]["HTTPStatusCode"] == 429:
+                    if attempt >= max_attempts:
+                        raise ServiceCallThrottlingException(
+                            f"ThrottlingException: Request denied due to exceeding account quotas after "
+                            f"{attempt} attempts over {time.time() - start_time:.1f} seconds"
+                        ) from e
+                
+                # Exponential backoff
+                wait_time = min(60, 3 * (2 ** (attempt - 1)))
+                await asyncio.sleep(wait_time)
+        
+        # If we got here, we exhausted our retries
+        raise ServiceCallException(f"Service call failed after {max_attempts} attempts: {str(last_exception)}")
 
-    @retry(reraise=True, stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=3, max=60))
-    def _service_call(
+    async def _service_call(
         self,
         messages: list[dict],
         system: dict | None,
@@ -177,20 +207,32 @@ class AWSLLMService(LLMService):
         tokens = LLMTokens()
         exception = None
 
-        try:
+        # Run boto3 client in a thread pool since it's synchronous
+        async def _make_api_call():
+            loop = asyncio.get_event_loop()
             if system:
-                api_response = self._client.converse(
-                    modelId=self.model.id,
-                    messages=messages,
-                    system=system,
-                    inferenceConfig=config,
+                return await loop.run_in_executor(
+                    None,
+                    lambda: self._client.converse(
+                        modelId=self.model.id,
+                        messages=messages,
+                        system=system,
+                        inferenceConfig=config,
+                    )
                 )
             else:
-                api_response = self._client.converse(
-                    modelId=self.model.id,
-                    messages=messages,
-                    inferenceConfig=config,
+                return await loop.run_in_executor(
+                    None,
+                    lambda: self._client.converse(
+                        modelId=self.model.id,
+                        messages=messages,
+                        inferenceConfig=config,
+                    )
                 )
+
+        try:
+            # Use our custom retry mechanism
+            api_response = await self.async_retry(_make_api_call)
 
             output = api_response["output"]["message"]["content"][0]["text"]
             tokens = LLMTokens(
@@ -233,32 +275,40 @@ class AWSLLMService(LLMService):
 
 
 if __name__ == "__main__":
+    import asyncio
     from llm_serv.api import get_llm_service
     from llm_serv.registry import REGISTRY
+    from llm_serv.conversation.role import Role
+    from llm_serv.structured_response.model import StructuredResponse
+    from pydantic import Field
 
-    model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
-    llm = get_llm_service(model)
+    async def test_aws():
+        model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
+        llm = await get_llm_service(model)
 
-    class MyClass(StructuredResponse):
-        example_string: str = Field(
-            default="", description="A string field that should be filled with a random person name in Elven language"
-        )
-        example_int: int = Field(
-            default=0, ge=0, le=10, description="An integer field with a random value, greater than 5."
-        )
-        example_float: float = Field(
-            default=0, ge=0.0, le=10.0, description="A float field with a value exactly half of the integer value"
-        )
+        class MyClass(StructuredResponse):
+            example_string: str = Field(
+                default="", description="A string field that should be filled with a random person name in Elven language"
+            )
+            example_int: int = Field(
+                default=0, ge=0, le=10, description="An integer field with a random value, greater than 5."
+            )
+            example_float: float = Field(
+                default=0, ge=0.0, le=10.0, description="A float field with a value exactly half of the integer value"
+            )
 
-    my_class = MyClass()
+        my_class = MyClass()
 
-    conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
-    conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
+        conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
+        conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
 
-    request = LLMRequest(conversation=conversation, response_class=MyClass, response_format=LLMResponseFormat.XML)
+        request = LLMRequest(conversation=conversation, response_class=MyClass, response_format=LLMResponseFormat.XML)
 
-    response = llm(request)
+        response = await llm(request)
 
-    print(response)
+        print(response)
 
-    assert isinstance(response.output, MyClass)
+        assert isinstance(response.output, MyClass)
+
+    # Run the test function with asyncio
+    asyncio.run(test_aws())

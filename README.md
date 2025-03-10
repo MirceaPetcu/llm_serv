@@ -69,7 +69,7 @@ models = REGISTRY.models
 
 # Select a model and create service
 model = REGISTRY.get_model(provider='AWS', name='claude-3-haiku')
-llm_service = get_llm_service(model)
+llm_service = await get_llm_service(model)
 
 # Create conversation and request
 conversation = Conversation.from_prompt("What's 1+1?")

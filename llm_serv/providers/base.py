@@ -234,13 +234,13 @@ class LLMService(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def _service_call(self):
+    async def _service_call(self, messages: list, system: dict | None, config: dict) -> tuple[str | None, LLMTokens, Exception | None]:
         """
         This method calls the underlying provider directly, and handles failure cases like throttling with retries internally
         """
         raise NotImplementedError()
 
-    def __call__(self, request: LLMRequest) -> LLMResponse:
+    async def __call__(self, request: LLMRequest) -> LLMResponse:
         try:
             response: LLMResponse = LLMResponse.from_request(request)
             response.start_time = time.time()
@@ -256,7 +256,7 @@ class LLMService(abc.ABC):
             Calls the underlying provider, and handles failure cases like throttling with retries internally.
             Raises ServiceCallException, ServiceCallThrottlingException if the service call fails.
             """
-            output, tokens, exception = self._service_call(messages, system, config)
+            output, tokens, exception = await self._service_call(messages, system, config)
 
             if output is None:
                 assert exception is not None

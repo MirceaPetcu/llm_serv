@@ -4,20 +4,10 @@ from typing import Optional
 from pydantic import Field
 from rich import print as rprint
 
-from llm_serv.api import get_llm_service
 from llm_serv.client import LLMServiceClient
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.providers.base import LLMRequest, LLMResponseFormat
-from llm_serv.registry import REGISTRY
 from llm_serv.structured_response.model import StructuredResponse
-
-model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
-llm_service = get_llm_service(model)
-
-input_text = """
-The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
-We expect a high of 15°C and a low of 5°C.
-"""
 
 
 class ChanceScale(Enum):
@@ -40,9 +30,15 @@ class WeatherPrognosis(StructuredResponse):
     wind_speed: Optional[float] = Field(description="The wind speed in km/h")
     high: Optional[float] = Field(ge=-20, le=60, description="The high temperature in degrees Celsius")
     low: Optional[float] = Field(description="The low temperature in degrees Celsius")
+    storm_tonight: bool = Field(description="Whether there will be a storm tonight")
 
 
 async def main():
+    input_text = """
+    The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
+    We expect a high of 15°C and a low of 5°C.
+    """
+
     # Initialize the client
     client = LLMServiceClient(host="localhost", port=9999, timeout=20.0)
 

@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Optional
+import asyncio
 
 from pydantic import Field
 from llm_serv.providers.base import LLMRequest, LLMResponseFormat
@@ -9,14 +10,6 @@ from llm_serv.conversation.conversation import Conversation
 from rich import print as rprint
 
 from llm_serv.structured_response.model import StructuredResponse
-
-model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
-llm_service = get_llm_service(model)
-
-input_text = """
-The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
-We expect a high of 15°C and a low of 5°C.
-"""
 
 
 class ChanceScale(Enum):
@@ -42,35 +35,49 @@ class WeatherPrognosis(StructuredResponse):
     storm_tonight: bool = Field(description="Whether there will be a storm tonight")
 
 
-prompt = f"""
-You are a weather expert. You are given a weather forecast for a specific location.
+async def main():
+    model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
+    llm_service = await get_llm_service(model)
 
-Here is the weather forecast:
-{input_text}
+    input_text = """
+    The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
+    We expect a high of 15°C and a low of 5°C.
+    """
 
-Here is the structured response:
-{WeatherPrognosis.to_text()}
-"""
+    prompt = f"""
+    You are a weather expert. You are given a weather forecast for a specific location.
 
-print(prompt)
+    Here is the weather forecast:
+    {input_text}
 
-conversation = Conversation.from_prompt(prompt)
-request = LLMRequest(
-    conversation=conversation,
-    response_class=WeatherPrognosis,
-    response_format=LLMResponseFormat.XML,
-    max_completion_tokens=4000,
-)
+    Here is the structured response:
+    {WeatherPrognosis.to_text()}
+    """
 
-response = llm_service(request)
+    print(prompt)
 
-print("\nResponse:")
-rprint(response.output)
+    conversation = Conversation.from_prompt(prompt)
+    request = LLMRequest(
+        conversation=conversation,
+        response_class=WeatherPrognosis,
+        response_format=LLMResponseFormat.XML,
+        max_completion_tokens=4000,
+    )
 
-print("\nToken Usage:")
-print(f"Input tokens: {response.tokens.input_tokens}")
-print(f"Output tokens: {response.tokens.completion_tokens}")
-print(f"Total tokens: {response.tokens.total_tokens}")
+    # Use await for async service call
+    response = await llm_service(request)
 
-print("\nRich print:")
-response.rprint()
+    print("\nResponse:")
+    rprint(response.output)
+
+    print("\nToken Usage:")
+    print(f"Input tokens: {response.tokens.input_tokens}")
+    print(f"Output tokens: {response.tokens.completion_tokens}")
+    print(f"Total tokens: {response.tokens.total_tokens}")
+
+    print("\nRich print:")
+    response.rprint()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

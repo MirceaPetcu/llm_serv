@@ -47,7 +47,7 @@ from llm_serv.providers.base import LLMRequest
 
 async def main():
     # 1. Initialize the client
-    client = LLMServiceClient(host="localhost", port=9999, timeout=30.)
+    client = LLMServiceClient(host="localhost", port=9999, timeout=10)
 
     # 2. Health check
     try:
@@ -72,7 +72,8 @@ async def main():
     print("AWS models:", aws_models)
 
     # 5. Set the model to use
-    client.set_model(provider="AWS", name="claude-3-haiku")
+    #client.set_model(provider="AWS", name="claude-3-haiku")
+    client.set_model(provider="OPENAI", name="gpt-4o-mini")
 
     # 6. Model test
     test = await client.model_health_check()

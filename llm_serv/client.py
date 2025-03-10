@@ -161,7 +161,11 @@ class LLMServiceClient:
         response_class = request.response_class
         response_format = request.response_format
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        # Create a client with limits that allow concurrency
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        ) as client:
             request_data = request.model_dump(mode="json")
 
             try:
@@ -204,10 +208,10 @@ class LLMServiceClient:
                 return llm_response
 
             except httpx.TimeoutException as e:
-                raise TimeoutException(f"Request timed out after {self.timeout} seconds") from e
+                raise TimeoutException(f"Request timed out after {timeout:.1f} seconds") from e
             except httpx.RequestError as e:
                 if isinstance(e, httpx.ReadTimeout):
-                    raise TimeoutException(f"Read timeout after {self.timeout} seconds") from e
+                    raise TimeoutException(f"Read timeout after {timeout:.1f} seconds") from e
                 raise ServiceCallException(f"Failed to connect to server: {str(e)}")
 
     async def model_health_check(self, timeout: float = 5.0) -> bool:

@@ -1,4 +1,6 @@
 import os
+import time
+import asyncio
 
 from openai import AzureOpenAI
 from pydantic import Field
@@ -155,8 +157,38 @@ class AzureOpenAILLMService(LLMService):
 
         return messages, None, config
 
-    @retry(reraise=True, stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=3, max=60))
-    def _service_call(
+    # Tenacity doesn't work well with async functions, so we implement our own retry
+    @staticmethod
+    async def async_retry(func, *args, **kwargs):
+        max_attempts = 5
+        attempt = 0
+        last_exception = None
+        start_time = time.time()
+        
+        while attempt < max_attempts:
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                attempt += 1
+                last_exception = e
+                
+                # Handle throttling specifically
+                if hasattr(e, "status_code") and e.status_code == 429:
+                    if attempt >= max_attempts:
+                        elapsed = time.time() - start_time
+                        raise ServiceCallThrottlingException(
+                            f"Azure service is throttling requests after {attempt} attempts "
+                            f"over {elapsed:.1f} seconds"
+                        ) from e
+                
+                # Exponential backoff
+                wait_time = min(60, 3 * (2 ** (attempt - 1)))
+                await asyncio.sleep(wait_time)
+        
+        # If we got here, we exhausted our retries
+        raise ServiceCallException(f"Service call failed after {max_attempts} attempts: {str(last_exception)}")
+
+    async def _service_call(
         self,
         messages: list[dict],
         system: dict | None,
@@ -166,8 +198,9 @@ class AzureOpenAILLMService(LLMService):
         tokens = LLMTokens()
         exception = None
 
-        try:
-            api_response = self._client.chat.completions.create(
+        async def _make_api_call():
+            # OpenAI's client supports async
+            response = await self._client.chat.completions.create(
                 model=self.model.id,
                 messages=messages,
                 max_tokens=config["max_tokens"],
@@ -175,6 +208,11 @@ class AzureOpenAILLMService(LLMService):
                 top_p=config["top_p"],
                 response_format=config["response_format"],
             )
+            return response
+        
+        try:
+            api_response = await self.async_retry(_make_api_call)
+            
             output = api_response.choices[0].message.content
             tokens = LLMTokens(
                 input_tokens=api_response.usage.prompt_tokens,
@@ -186,46 +224,47 @@ class AzureOpenAILLMService(LLMService):
             if hasattr(e, "status_code"):
                 if e.status_code == 400:
                     raise ServiceCallException(f"Bad request: {str(e)}")
-                elif e.status_code == 429:
-                    statistics = getattr(self._service_call, "statistics", None)
-                    if statistics and statistics['attempt_number'] >= 5:
-                        raise ServiceCallThrottlingException(
-                            f"Azure service is throttling requests after {statistics['attempt_number']} attempts "
-                            f"over {statistics['delay_since_first_attempt']:.1f} seconds"
-                        )
-                    raise  # Let tenacity retry
+                # Other error checks can be added here if needed
             raise ServiceCallException(f"Azure service error: {str(e)}")
 
         return output, tokens, exception
 
 
 if __name__ == "__main__":
+    import asyncio
     from llm_serv.api import get_llm_service
     from llm_serv.registry import REGISTRY
+    from llm_serv.conversation.role import Role
+    from llm_serv.structured_response.model import StructuredResponse
+    from pydantic import Field
 
-    model = REGISTRY.get_model(provider="AZURE", name="gpt-4o-mini")
-    llm = get_llm_service(model)
+    async def test_azure():
+        model = REGISTRY.get_model(provider="AZURE", name="gpt-4o-mini")
+        llm = await get_llm_service(model)
 
-    class MyClass(StructuredResponse):
-        example_string: str = Field(
-            default="", description="A string field that should be filled with a random person name in Elven language"
-        )
-        example_int: int = Field(
-            default=0, ge=0, le=10, description="An integer field with a random value, greater than 5."
-        )
-        example_float: float = Field(
-            default=0, ge=0.0, le=10.0, description="A float field with a value exactly half of the integer value"
-        )
+        class MyClass(StructuredResponse):
+            example_string: str = Field(
+                default="", description="A string field that should be filled with a random person name in Elven language"
+            )
+            example_int: int = Field(
+                default=0, ge=0, le=10, description="An integer field with a random value, greater than 5."
+            )
+            example_float: float = Field(
+                default=0, ge=0.0, le=10.0, description="A float field with a value exactly half of the integer value"
+            )
 
-    my_class = MyClass()
+        my_class = MyClass()
 
-    conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
-    conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
+        conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
+        conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
 
-    request = LLMRequest(conversation=conversation, response_class=MyClass, response_format=LLMResponseFormat.XML)
+        request = LLMRequest(conversation=conversation, response_class=MyClass, response_format=LLMResponseFormat.XML)
 
-    response = llm(request)
+        response = await llm(request)
 
-    print(response)
+        print(response)
 
-    assert isinstance(response.output, MyClass)
+        assert isinstance(response.output, MyClass)
+
+    # Run the test function with asyncio
+    asyncio.run(test_azure())

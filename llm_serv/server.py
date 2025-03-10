@@ -98,7 +98,7 @@ async def list_providers() -> list[str]:
 @app.post("/chat/{model_provider}/{model_name}")
 async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLMResponse:
     try:
-        logger.info(f"Chatting with model {model_provider}/{model_name}")
+        logger.warn(f"Chatting with model {model_provider}/{model_name}")
         logger.info(f"Request: {request}")
 
         # First of all, check if the model is available
@@ -116,22 +116,28 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
 
         # Update model-specific usage counter with detailed metrics
         model_key = f"{model_provider}.{model_name}"
-        if model_key not in app.state.model_usage:
-            app.state.model_usage[model_key] = {
-                "chat_request_count": 0,
-                "tokens": {"input": 0, "completion": 0, "total": 0},
-            }
+        app.state.model_usage[model_key] = app.state.model_usage.get(model_key, 0) + 1
 
-        # Now, get the LLM service and call it
+        # Get the LLM service for this model
+        llm_service = await get_llm_service(model)
+
         try:
-            llm_service = get_llm_service(model)
-            response = llm_service(request)
+            # This is async now, so await it
+            response = await llm_service(request)
+            
+            logger.info(f"Response: {response}")
+            return response
+
         except InternalConversionException as e:
             raise HTTPException(
-                status_code=400, detail={"error": "internal_conversion_error", "message": str(e)}
+                status_code=400,
+                detail={"error": "internal_conversion_error", "message": str(e)},
             ) from e
         except ServiceCallThrottlingException as e:
-            raise HTTPException(status_code=429, detail={"error": "service_throttling", "message": str(e)}) from e
+            raise HTTPException(
+                status_code=429,
+                detail={"error": "service_throttling", "message": str(e)},
+            ) from e
         except StructuredResponseException as e:
             raise HTTPException(
                 status_code=422,
@@ -151,35 +157,11 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
                 detail={"error": "internal_server_error", "message": f"Error processing chat request: {str(e)}"},
             ) from e
 
-        logger.info(f"Response: {response}")
-
-        # Update both global and model-specific token counts
-        try:
-            app.state.total_tokens["input"] += response.tokens.input_tokens
-            app.state.total_tokens["completion"] += response.tokens.completion_tokens
-            app.state.total_tokens["total"] += response.tokens.total_tokens
-
-            # Update model-specific metrics
-            app.state.model_usage[model_key]["chat_request_count"] += 1
-            app.state.model_usage[model_key]["tokens"]["input"] += response.tokens.input_tokens
-            app.state.model_usage[model_key]["tokens"]["completion"] += response.tokens.completion_tokens
-            app.state.model_usage[model_key]["tokens"]["total"] += response.tokens.total_tokens
-        except Exception as e:
-            logger.error(f"Error updating metrics: {str(e)}", exc_info=True)
-            # Don't raise here - metrics errors shouldn't affect the response
-
-        return response
-
-    except HTTPException:
-        raise  # Re-raise HTTP exceptions as-is
     except Exception as e:
-        logger.error(f"Unexpected error in chat endpoint: {str(e)}", exc_info=True)
+        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={
-                "error": "internal_server_error",
-                "message": "An unexpected error occurred processing your request",
-            },
+            detail={"error": "internal_server_error", "message": f"Unexpected error: {str(e)}"},
         ) from e
 
 
@@ -220,8 +202,16 @@ async def health_check(request: Request):
 def main():
     try:
         port = int(os.getenv("API_PORT", "9999"))
-        logger.info(f"Starting server on port {port}")
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+        workers = int(os.getenv("API_WORKERS", "10"))
+        logger.info(f"Starting server on port {port} with {workers} workers")
+        uvicorn.run(
+            "llm_serv.server:app",  # Import string instead of app object
+            host="0.0.0.0", 
+            port=port, 
+            log_level="info",
+            workers=workers,
+            loop="auto"
+        )
     except ValueError as e:
         logger.error(f"Invalid port configuration: {str(e)}", exc_info=True)
         raise SystemExit(1)

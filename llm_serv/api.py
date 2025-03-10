@@ -2,7 +2,7 @@ from llm_serv.providers.base import LLMService
 from llm_serv.registry import Model
 
 
-def get_llm_service(model: Model) -> LLMService:
+async def get_llm_service(model: Model) -> LLMService:
     """
     Factory function to create an LLM service instance based on the provider.
 
