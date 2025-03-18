@@ -22,6 +22,8 @@ class RainProbability(StructuredResponse):
     chance: ChanceScale = Field(description="The chance of rain, where low is less than 25% and high is more than 75%")
     when: str = Field(description="The time of day when the rain is or is not expected")
 
+class UVIndex(StructuredResponse):
+    index: int = Field(description="The UV index, where 0 is no UV and 11+ is dangerous")
 
 class WeatherPrognosis(StructuredResponse):
     location: str = Field(description="The location of the weather forecast")
@@ -30,6 +32,7 @@ class WeatherPrognosis(StructuredResponse):
         description="The chance of rain, where low is less than 25% and high is more than 75%"
     )
     wind_speed: Optional[float] = Field(description="The wind speed in km/h")
+    uv_index: UVIndex = Field(description="The UV index, where 0 is no UV and 11+ is dangerous")
     high: Optional[float] = Field(ge=-20, le=60, description="The high temperature in degrees Celsius")
     low: Optional[float] = Field(description="The low temperature in degrees Celsius")
     storm_tonight: bool = Field(description="Whether there will be a storm tonight")
@@ -41,7 +44,7 @@ async def main():
 
     input_text = """
     The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
-    We expect a high of 15°C and a low of 5°C.
+    We expect a high of 15°C and a low of 5°C. The UV index is moderate.
     """
 
     prompt = f"""

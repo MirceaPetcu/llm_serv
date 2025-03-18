@@ -69,8 +69,12 @@ def get_field_type(class_type: Type):
     """
     fields = []
 
-    for field_name, field_type in class_type.__annotations__.items():  
-        # Check if field is Optional (either directly or as Optional[List[...]])
+    # Use model_fields which includes inherited fields (Pydantic v2)
+    model_fields = class_type.model_fields
+    for field_name, field_info in model_fields.items():
+        field_type = field_info.annotation
+        
+        # Check if field is Optional
         is_optional = (
             get_origin(field_type) is Union and type(None) in get_args(field_type)
         )
@@ -94,6 +98,7 @@ def get_field_type(class_type: Type):
             "base_type": base_type,
             "list_item_type": list_item_type
         })
+            
     return fields
 
 
