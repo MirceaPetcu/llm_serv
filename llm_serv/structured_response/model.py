@@ -22,3 +22,11 @@ class StructuredResponse(BaseModel):
         This method is used to convert a StructuredResponse object into a prompt-ready text string.
         """
         return response_to_xml(object=cls, exclude_fields=exclude_fields)
+    
+    def __str__(self):
+        """
+        Returns a JSON string representation of the StructuredResponse object,
+        excluding fields with None values.
+        """
+        return self.model_dump_json(indent=2, exclude_none=True)
+        

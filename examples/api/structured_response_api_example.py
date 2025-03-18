@@ -78,6 +78,9 @@ async def main():
     print("\nRich print:")
     response.rprint()
 
+    print("\nJSON print:")
+    print(f"{response.output}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
