@@ -105,7 +105,7 @@ class LLMResponse(BaseModel):
         response = LLMResponse(**compatible_fields)
         return response
 
-    def rprint(self):
+    def rprint(self, subtitle: str | None = None):
         try:
             from rich.panel import Panel
             from rich.console import Console
@@ -180,7 +180,7 @@ class LLMResponse(BaseModel):
             # Create panel title (stats line)
             title = ""
             if self.tokens:
-                model_str = f"{self.llm_model.provider.name}/{self.llm_model.name}"
+                model_str = f"LLMRequest: {self.llm_model.provider.name}/{self.llm_model.name}"
                 title = f"{model_str} | Time: {self.total_time:.2f}s | Input/Output tokens: {self.tokens.input_tokens}/{self.tokens.completion_tokens} | Total tokens: {self.tokens.total_tokens}"
 
             # Print single panel with all content
@@ -188,7 +188,9 @@ class LLMResponse(BaseModel):
                 "\n".join(content_parts),
                 title=title,
                 title_align="right",
-                border_style="magenta"
+                border_style="magenta",
+                subtitle=subtitle,
+                subtitle_align="left"
             ))
         except Exception as e:
             # Fallback to basic printing if rich formatting fails
