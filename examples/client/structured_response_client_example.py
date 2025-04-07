@@ -4,9 +4,7 @@ from typing import Optional
 from pydantic import Field
 from rich import print as rprint
 
-from llm_serv.client import LLMServiceClient
-from llm_serv.conversation.conversation import Conversation
-from llm_serv.providers.base import LLMRequest, LLMResponseFormat
+from llm_serv import LLMServiceClient, Conversation, LLMRequest, LLMResponseFormat
 from llm_serv.structured_response.model import StructuredResponse
 
 

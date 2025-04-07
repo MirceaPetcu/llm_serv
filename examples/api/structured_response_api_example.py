@@ -6,7 +6,7 @@ from pydantic import Field
 from llm_serv.providers.base import LLMRequest, LLMResponseFormat
 from llm_serv.registry import REGISTRY
 from llm_serv.api import get_llm_service
-from llm_serv.conversation.conversation import Conversation
+from llm_serv.conversation import Conversation
 from rich import print as rprint
 
 from llm_serv.structured_response.model import StructuredResponse

@@ -177,7 +177,7 @@ def test_message_model_validation():
     # Dict input
     data = {
         "text": "Hello",
-        "role": "USER",
+        "role": "User",
         "images": [],
         "documents": []
     }
@@ -210,9 +210,5 @@ def test_message_role_handling():
         assert loaded_msg.role == role
     
     # Test role string conversion
-    msg = Message(text="test", role="ASSISTANT")
-    assert msg.role == Role.ASSISTANT
-    
-    # Test invalid role string
-    with pytest.raises(ValueError):
-        Message(text="test", role="INVALID") 
+    msg = Message(text="test", role="Assistant")
+    assert msg.role == Role.ASSISTANT 

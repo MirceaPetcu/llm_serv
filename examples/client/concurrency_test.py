@@ -19,7 +19,7 @@ from rich.text import Text
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from llm_serv.client import LLMServiceClient
-from llm_serv.conversation.conversation import Conversation
+from llm_serv.conversation import Conversation
 from llm_serv.exceptions import ServiceCallException, TimeoutException
 from llm_serv.providers.base import LLMRequest, LLMResponse
 

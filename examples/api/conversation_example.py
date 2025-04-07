@@ -9,8 +9,7 @@ import asyncio
 from rich import print as rprint
 
 from llm_serv.api import get_llm_service
-from llm_serv.conversation.conversation import Conversation
-from llm_serv.conversation.role import Role
+from llm_serv.conversation import Conversation, Role
 from llm_serv.providers.base import LLMRequest
 from llm_serv.registry import REGISTRY
 

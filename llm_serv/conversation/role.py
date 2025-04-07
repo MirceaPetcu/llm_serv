@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class Role(Enum):
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
+class Role(str, Enum):
+    USER:str = "user"
+    ASSISTANT:str = "assistant"
+    SYSTEM:str = "system"

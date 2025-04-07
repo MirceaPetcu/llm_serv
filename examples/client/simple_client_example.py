@@ -39,11 +39,8 @@ import asyncio
 
 from rich import print as rprint
 
-from llm_serv.client import LLMServiceClient
-from llm_serv.conversation.conversation import Conversation
+from llm_serv import LLMServiceClient, Conversation, LLMRequest
 from llm_serv.exceptions import ServiceCallException
-from llm_serv.providers.base import LLMRequest
-
 
 async def main():
     # 1. Initialize the client

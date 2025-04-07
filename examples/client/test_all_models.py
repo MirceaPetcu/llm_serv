@@ -18,10 +18,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from llm_serv.client import LLMServiceClient
-from llm_serv.conversation.conversation import Conversation
+from llm_serv import LLMServiceClient, Conversation, LLMRequest, LLMResponse
 from llm_serv.exceptions import ServiceCallException, TimeoutException
-from llm_serv.providers.base import LLMRequest, LLMResponse
 
 console = Console()
 

@@ -11,23 +11,6 @@ class Conversation(BaseModel):
     system: str = ""
     messages: list[Message] = []
 
-    def add(self, message: Message):
-        self.messages.append(message)
-
-    def to_json(self) -> dict:
-        return {"system": self.system, "messages": [msg.to_json() for msg in self.messages]}
-
-    @classmethod
-    def from_json(cls, json_data: dict) -> "Conversation":
-        if not json_data:
-            raise ValueError("Empty JSON data")
-
-        try:
-            messages = [Message.from_json(msg_data) for msg_data in json_data.get("messages", [])]
-            return cls(system=json_data.get("system", ""), messages=messages)
-        except Exception as e:
-            raise ValueError(f"Failed to parse JSON data: {str(e)}")
-
     @classmethod
     def from_prompt(cls, prompt: str, system: str = "") -> "Conversation":
         assert len(prompt) > 0
@@ -35,6 +18,9 @@ class Conversation(BaseModel):
         conv.system = system
         conv.add_text_message(role=Role.USER, content=prompt)
         return conv
+
+    def add(self, message: Message):
+        self.messages.append(message)
 
     def add_text_message(self, role: Role, content: str):
         # ensure alternation between user and assistant roles
@@ -53,19 +39,19 @@ def main():
     print("\n=== Test 1: Basic Conversation ===")
     conv = Conversation()
     conv.system = "You are a helpful assistant."
-    conv.add_text_message(role=Role.USER, text="Hello!")
-    conv.add_text_message(role=Role.ASSISTANT, text="Hi there! How can I help you?")
+    conv.add_text_message(role=Role.USER, content="Hello!")
+    conv.add_text_message(role=Role.ASSISTANT, content="Hi there! How can I help you?")
 
     # Save to JSON
     json_file = "test_conversation.json"
     print(f"\nSaving conversation to JSON: {json_file}")
     with open(json_file, "w", encoding="utf-8") as f:
-        json.dump(conv.to_json(), f, ensure_ascii=False, indent=2)
+        json.dump(conv.model_dump(), f, ensure_ascii=False, indent=2)
 
     # Load back from JSON
     print(f"Loading conversation from JSON: {json_file}")
     with open(json_file, "r", encoding="utf-8") as f:
-        loaded_conv = Conversation.from_json(json.load(f))
+        loaded_conv = Conversation.model_validate(json.load(f))
 
     # Verify content
     print("\nVerifying loaded conversation:")
