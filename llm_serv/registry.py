@@ -48,7 +48,7 @@ class Registry:
         providers_data = data.get("PROVIDERS", {})
 
         for provider_name, provider_models in models_data.items():
-            provider = ModelProvider(name=provider_name, config=providers_data[provider_name].get("config", {}))
+            provider = ModelProvider(name=provider_name, config=providers_data[provider_name].get("config", {}))            
 
             for model_name, model_data in provider_models.items():
                 model = Model(
@@ -60,6 +60,10 @@ class Registry:
                     config=model_data.get("config", {}),
                 )
                 models.append(model)
+
+                # add provider to providers list if not already present
+                if provider not in self.providers:
+                    self.providers.append(provider)
 
         self.models = models
 

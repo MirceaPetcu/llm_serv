@@ -1,13 +1,11 @@
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from llm_serv.structured_response.from_text import response_from_xml
 from llm_serv.structured_response.to_text import response_to_xml
 
 
 class StructuredResponse(BaseModel):
-    class Config:
-        validate_assignment = False
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(validate_assignment=False, arbitrary_types_allowed=True)
 
     @classmethod
     def from_text(cls, xml: str, exclude_fields: List[str] = []) -> 'StructuredResponse':

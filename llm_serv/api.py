@@ -1,6 +1,21 @@
 from llm_serv.providers.base import LLMService
-from llm_serv.registry import Model
+from llm_serv.registry import REGISTRY, Model
 
+
+async def list_providers() -> list[str]:
+    """
+    List all available providers.
+    """
+    return [provider.name for provider in REGISTRY.providers]
+
+async def list_models(provider: str | None = None) -> list[Model]:
+    """
+    List all available models.
+    """
+    if provider is None:
+        return REGISTRY.models  
+    else:
+        return [model for model in REGISTRY.models if model.provider.name == provider]
 
 async def get_llm_service(model: Model) -> LLMService:
     """
@@ -49,4 +64,4 @@ async def get_llm_service(model: Model) -> LLMService:
 
             return OpenAILLMService(model)
         case _:
-            raise ValueError(f"Unsupported provider: {provider_name}. Only AWS and Azure are currently supported.")
+            raise ValueError(f"Unsupported provider: {provider_name}.")

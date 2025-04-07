@@ -14,6 +14,7 @@ from llm_serv.exceptions import (
     ServiceCallException,
     ServiceCallThrottlingException,
     StructuredResponseException,
+    CredentialsException,
 )
 from llm_serv.providers.base import LLMRequest, LLMResponse
 from llm_serv.registry import REGISTRY, Model
@@ -98,7 +99,7 @@ async def list_providers() -> list[str]:
 @app.post("/chat/{model_provider}/{model_name}")
 async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLMResponse:
     try:
-        logger.warn(f"Chatting with model {model_provider}/{model_name}")
+        logger.warning(f"Chatting with model {model_provider}/{model_name}")
         logger.info(f"Request: {request}")
 
         # First of all, check if the model is available
@@ -197,6 +198,71 @@ async def health_check(request: Request):
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Service health check failed: {str(e)}") from e
+
+
+@app.get("/check_credentials/{model_provider}/{model_name}")
+async def check_credentials(model_provider: str, model_name: str):
+    """
+    Checks if credentials are properly set for the specified provider and model.
+    
+    Args:
+        model_provider: Provider name (e.g., "AWS", "AZURE")
+        model_name: Model name (e.g., "claude-3-haiku", "gpt-4")
+        
+    Returns:
+        JSON response indicating the status of credentials
+        
+    Raises:
+        HTTPException: When credentials are not properly set or model is not found
+    """
+    try:
+        logger.info(f"Checking credentials for {model_provider}/{model_name}")
+        
+        # First check if the model is available
+        try:
+            model = REGISTRY.get_model(provider=model_provider, name=model_name)
+        except ValueError as e:
+            logger.error(f"Model not found: {model_provider}/{model_name}")
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "model_not_found", "message": f"Model {model_provider}/{model_name} not found"},
+            ) from e
+            
+        # Check credentials based on provider
+        provider_name = model.provider.name.upper()
+        
+        try:
+            match provider_name:
+                case "AWS":
+                    from llm_serv.providers.aws import check_credentials
+                    check_credentials()
+                case "AZURE":
+                    from llm_serv.providers.azure import check_credentials
+                    check_credentials()
+                case "OPENAI":
+                    from llm_serv.providers.oai import check_credentials
+                    check_credentials()
+                case _:
+                    logger.warning(f"No credential check implemented for provider: {provider_name}")
+                    return {"status": "unknown", "message": f"No credential check implemented for provider: {provider_name}"}
+                    
+            return {"status": "success", "message": f"Credentials for {model_provider}/{model_name} are properly set"}
+            
+        except CredentialsException as e:
+            logger.error(f"Credentials not set for {model_provider}/{model_name}: {str(e)}")
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "credentials_not_set", "message": str(e)},
+            ) from e
+            
+    except Exception as e:
+        if not isinstance(e, HTTPException):
+            logger.error(f"Unexpected error checking credentials: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail={"error": "internal_server_error", "message": f"Unexpected error checking credentials: {str(e)}"},
+            ) from e
+        raise e
 
 
 def main():

@@ -1,7 +1,7 @@
 import httpx
 import asyncio
 
-from llm_serv.exceptions import InternalConversionException, ModelNotFoundException, ServiceCallException, ServiceCallThrottlingException, StructuredResponseException, TimeoutException
+from llm_serv.exceptions import InternalConversionException, ModelNotFoundException, ServiceCallException, ServiceCallThrottlingException, StructuredResponseException, TimeoutException, CredentialsException
 from llm_serv.providers.base import LLMRequest, LLMResponse, LLMResponseFormat
 
 
@@ -10,7 +10,7 @@ class LLMServiceClient:
         self.host = host
         self.port = port
         self.base_url = f"http://{host}:{port}"
-        self.timeout = timeout
+        self.timeout = self._validate_timeout(timeout)
         
         self.provider = None
         self.name = None
@@ -21,11 +21,17 @@ class LLMServiceClient:
             "Content-Type": "application/json"
         }
 
-    def validate_timeout(self, timeout: float) -> float:
+    def _validate_timeout(self, timeout: float) -> float:
         """
-        Enforce a minimum timeout of 1 second.
+        Enforce a minimum timeout of 5 seconds.
+        
+        Args:
+            timeout: The timeout value in seconds to validate
+            
+        Returns:
+            float: The validated timeout (minimum 5 seconds)
         """
-        return 1 if timeout <= 0 else timeout
+        return 5 if timeout <= 0 else timeout
 
     async def server_health_check(self, timeout: float = 5.0) -> None:
         """
@@ -39,7 +45,7 @@ class LLMServiceClient:
         Raises:
             ServiceCallException: If the server is not healthy or cannot be reached
         """
-        timeout = self.validate_timeout(timeout)
+        timeout = self._validate_timeout(timeout)
         
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -133,6 +139,68 @@ class LLMServiceClient:
         """
         self.provider = provider
         self.name = name
+        
+    async def check_model_credentials(self) -> bool:
+        """
+        Checks if credentials are set for the current model.
+        Should be called after setting a model to verify credentials.
+        
+        Returns:
+            bool: True if credentials are set, False otherwise
+            
+        Raises:
+            ValueError: If model is not set
+            CredentialsException: When credentials are not set
+        """
+        if not self.provider or not self.name:
+            raise ValueError("Model is not set, please set it with client.set_model(provider, name) first!")
+            
+        return await self.check_credentials(raise_exception=True)
+
+    async def check_credentials(self, provider: str = None, name: str = None, raise_exception: bool = False) -> bool:
+        """
+        Checks if credentials are set for the given provider and model.
+        
+        Args:
+            provider: Provider name (e.g., "AWS", "AZURE"). Uses the currently set provider if None.
+            name: Model name (e.g., "claude-3-haiku", "gpt-4"). Uses the currently set model if None.
+            raise_exception: Whether to raise an exception if credentials are not set
+            
+        Returns:
+            bool: True if credentials are set, False otherwise
+            
+        Raises:
+            ValueError: When provider or model is not set
+            CredentialsException: When credentials are not set and raise_exception is True
+        """
+        # Use current provider and name if not provided
+        provider = provider or self.provider
+        name = name or self.name
+        
+        if not provider or not name:
+            raise ValueError("Provider and model name must be set.")
+            
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    f"{self.base_url}/check_credentials/{provider}/{name}",
+                    headers=self._default_headers
+                )
+                
+                if response.status_code != 200:
+                    error_data = response.json()
+                    error_msg = error_data.get("detail", {}).get("message", str(error_data))
+                    
+                    if raise_exception:
+                        raise CredentialsException(f"Credentials check failed: {error_msg}")
+                    return False
+                    
+                return True
+                
+        except httpx.RequestError as e:
+            if raise_exception:
+                raise ServiceCallException(f"Failed to connect to server: {str(e)}")
+            return False
 
     async def chat(self, request: LLMRequest, timeout: float | None = None) -> LLMResponse:
         """
@@ -147,6 +215,7 @@ class LLMServiceClient:
         Raises:            
             ValueError: When model is not set
             ModelNotFoundException: When the model is not found on the backend
+            CredentialsException: When credentials are not set
             InternalConversionException: When the internal conversion to the particular provider fails
             ServiceCallException: When the service call fails for any reason
             ServiceCallThrottlingException: When the service call is throttled but the number retries is exhausted
@@ -156,7 +225,7 @@ class LLMServiceClient:
         if not self.provider or not self.name:
             raise ValueError("Model is not set, please set it with client.set_model(provider, name) first!")
         
-        timeout = self.timeout if timeout is None else self.validate_timeout(timeout)
+        timeout = self.timeout if timeout is None else self._validate_timeout(timeout)
             
         response_class = request.response_class
         response_format = request.response_format
@@ -193,6 +262,8 @@ class LLMServiceClient:
                             xml=error_data.get("detail", {}).get("xml", ""),
                             return_class=error_data.get("detail", {}).get("return_class")
                         )
+                    elif response.status_code == 401 and error_type == "credentials_not_set":
+                        raise CredentialsException(error_msg)
                     elif response.status_code == 502 and error_type == "service_call_error":
                         raise ServiceCallException(error_msg)
                     else:
@@ -233,7 +304,7 @@ class LLMServiceClient:
         if not self.provider or not self.name:
             raise ValueError("Model is not set, please set it with client.set_model(provider, name) first!")
 
-        timeout = self.validate_timeout(timeout)
+        timeout = self._validate_timeout(timeout)
         
         try:
             # Create a minimal test conversation

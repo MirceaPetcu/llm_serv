@@ -1,7 +1,7 @@
 import base64
 import os
 from typing import Optional, Annotated
-from pydantic import BaseModel, Field, GetJsonSchemaHandler, PlainSerializer, PlainValidator
+from pydantic import BaseModel, Field, GetJsonSchemaHandler, PlainSerializer, PlainValidator, ConfigDict
 from typing_extensions import Annotated
 from colorama import init, Fore
 
@@ -12,7 +12,7 @@ class Document(BaseModel):
     It can store text or binary data.
     """
 
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     _content_base64: str  # base64 encoded string
     _is_binary: bool = False  # this is true if the content is binary

@@ -168,13 +168,8 @@ class OpenAILLMService(LLMService):
         
         while attempt < max_attempts:
             try:
-                # Call the function and get its result
-                result = func()
-                # If the result is already a coroutine, await it
-                if hasattr(result, "__await__"):
-                    return await result
-                # Otherwise, return it directly
-                return result
+                # The function itself should be awaitable, not its result
+                return await func()
             except Exception as e:
                 attempt += 1
                 last_exception = e
@@ -184,12 +179,11 @@ class OpenAILLMService(LLMService):
                     if attempt >= max_attempts:
                         elapsed = time.time() - start_time
                         raise ServiceCallThrottlingException(
-                            f"OpenAI service is throttling requests after {attempt} attempts "
-                            f"over {elapsed:.1f} seconds"
+                            f"OpenAI service is throttling requests after {attempt} attempts over {elapsed:.1f} sec."
                         ) from e
                 
                 # Exponential backoff
-                wait_time = min(60, 3 * (2 ** (attempt - 1)))
+                wait_time = min(60, initial_backoff * (backoff_multiplier ** (attempt - 1)))
                 await asyncio.sleep(wait_time)
         
         # If we got here, we exhausted our retries

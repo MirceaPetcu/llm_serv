@@ -4,7 +4,7 @@ from copy import deepcopy
 from enum import Enum
 from typing import Annotated, Type
 
-from pydantic import BaseModel, Field, PlainSerializer, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, computed_field, field_validator
 
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.exceptions import (
@@ -62,8 +62,7 @@ class LLMRequest(BaseModel):
     max_retries: int = 3
     top_p: float = 0.95
     
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @classmethod
     @field_validator("prompt", "messages")
@@ -94,8 +93,7 @@ class LLMResponse(BaseModel):
     end_time: float | None = None  # time.time() as fractions of a second
     total_time: float | None = None  # time in seconds (fractions included)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @classmethod
     def from_request(cls, request: LLMRequest) -> "LLMResponse":

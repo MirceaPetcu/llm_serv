@@ -5,15 +5,15 @@ from typing import Optional
 
 import requests
 from PIL import Image as PILImage
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from colorama import init, Fore
 
 
 class Image(BaseModel):
-    model_config = {
-        "arbitrary_types_allowed": True,
-        "json_schema_extra": {"examples": [{"image": "base64_encoded_image_data"}]},
-    }
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_schema_extra={"examples": [{"image": "base64_encoded_image_data"}]},
+    )
 
     image: PILImage.Image
     name: Optional[str] = None

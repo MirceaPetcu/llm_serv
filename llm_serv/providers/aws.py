@@ -3,7 +3,6 @@ import time
 import asyncio
 
 import boto3
-from dotenv import load_dotenv
 from pydantic import Field
 from rich import print
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type

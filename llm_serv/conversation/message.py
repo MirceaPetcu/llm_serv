@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from colorama import init, Fore
 
 from llm_serv.conversation.role import Role
@@ -9,7 +9,7 @@ from llm_serv.conversation.image import Image
 
 
 class Message(BaseModel):
-    model_config = {"arbitrary_types_allowed": True, "json_encoders": {Image: lambda img: img.to_json()}}
+    model_config = ConfigDict(arbitrary_types_allowed=True, json_encoders={Image: lambda img: img.to_json()})
 
     role: Role = Field(default=Role.USER)
     text: Optional[str] = None
