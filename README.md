@@ -7,9 +7,11 @@ This is a Python package that provides a simple interface for calling LLM servic
 Supported providers:
 - [x] AWS
 - [x] Azure
-- [ ] OpenAI (to come)
+- [x] OpenAI 
 - [ ] Mistral (to come)
 - [ ] Anthropic (to come)
+
+Examples for the API and client are found in ``examples/`` folder.
 
 ## SETUP
 
@@ -34,16 +36,6 @@ For Azure:
 - AZURE_OPENAI_API_KEY
 - AZURE_OPEN_AI_API_VERSION
 - AZURE_OPENAI_DEPLOYMENT_NAME
-
-
-An .env file looks like this:
-
-```
-AWS_PROFILE=your-aws-profile-name
-AWS_DEFAULT_REGION=your-aws-region-name
-AWS_ACCESS_KEY_ID=your-aws-access-key-id
-AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
-```
 
 ## How to use:
 
@@ -180,15 +172,15 @@ For more details, see the complete example in ``examples/example_client.py``.
 - [ ] Add Anthropic support
 - [ ] Add streaming support
 - [ ] Add caching support
-- [ ] Add local LLM support - Won't do. 
-- [ ] Restore image capabilities
-- [ ] Restore document capabilities
+- [ ] Image capabilities, implementation and tests
+- [ ] Document capabilities, implementation and tests
 - [X] Add XML lazy structured output support
     - [ ] Handle | operator, not only Optional[]
     - [ ] Full testing for this
 - [ ] Add provider-specific structured output support
+    - [ ] OpenAI
+    - [ ] Azure
+    - [ ] AWS
 - [ ] Add proper logging
-- [ ] Add tests
+- [ ] Add tests for every section
 - [ ] Add proper documentation
-- [X] Add better healthcheck with uptime and token count
-- [X] Add better credentials check at initialization
