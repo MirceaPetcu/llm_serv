@@ -14,17 +14,11 @@
             "envFile": "${workspaceFolder}/.env"
         },          
         {
-            "name": "Debug FastAPI Project backend: Python Debugger",
-            "type": "debugpy",
+            "name": "Start Server",
+            "type": "python",
             "request": "launch",
-            "module": "uvicorn",
-            "args": [
-                "app.main:app",
-                "--reload"
-            ],
-            "cwd": "${workspaceFolder}/llm_serv",
-            "jinja": true,
-            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/llm_serv/server.py",
+            "cwd": "${workspaceFolder}/llm_serv"
         }
     ]
 }
