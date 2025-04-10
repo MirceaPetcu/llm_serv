@@ -20,6 +20,25 @@ class LLMServiceClient:
             "Accept-Encoding": "gzip, deflate",
             "Content-Type": "application/json"
         }
+        
+        # Create a persistent client for multiple requests
+        self._client = httpx.AsyncClient(
+            timeout=self.timeout,
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+            headers=self._default_headers
+        )
+
+    async def __aenter__(self):
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+        
+    async def close(self):
+        """Close the underlying HTTP client."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
 
     def _validate_timeout(self, timeout: float) -> float:
         """
@@ -48,6 +67,7 @@ class LLMServiceClient:
         timeout = self._validate_timeout(timeout)
         
         try:
+            # Use a temporary client with a short timeout for health check
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.get(
                     f"{self.base_url}/health",
@@ -88,18 +108,14 @@ class LLMServiceClient:
             ServiceCallException: When there is an error retrieving the model list
         """
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    f"{self.base_url}/list_models",
-                    headers=self._default_headers
-                )
+            response = await self._client.get(f"{self.base_url}/list_models")
                 
-                if response.status_code != 200:
-                    error_data = response.json()
-                    error_msg = error_data.get("detail", {}).get("message", str(error_data))
-                    raise ServiceCallException(f"Failed to list models: {error_msg}")
-                    
-                return response.json()
+            if response.status_code != 200:
+                error_data = response.json()
+                error_msg = error_data.get("detail", {}).get("message", str(error_data))
+                raise ServiceCallException(f"Failed to list models: {error_msg}")
+                
+            return response.json()
         except httpx.RequestError as e:
             raise ServiceCallException(f"Failed to connect to server: {str(e)}")
 
@@ -114,18 +130,14 @@ class LLMServiceClient:
             ServiceCallException: When there is an error retrieving the provider list
         """
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    f"{self.base_url}/list_providers",
-                    headers=self._default_headers
-                )
+            response = await self._client.get(f"{self.base_url}/list_providers")
                 
-                if response.status_code != 200:
-                    error_data = response.json()
-                    error_msg = error_data.get("detail", {}).get("message", str(error_data))
-                    raise ServiceCallException(f"Failed to list providers: {error_msg}")
-                    
-                return response.json()
+            if response.status_code != 200:
+                error_data = response.json()
+                error_msg = error_data.get("detail", {}).get("message", str(error_data))
+                raise ServiceCallException(f"Failed to list providers: {error_msg}")
+                
+            return response.json()
         except httpx.RequestError as e:
             raise ServiceCallException(f"Failed to connect to server: {str(e)}")
 
@@ -181,21 +193,17 @@ class LLMServiceClient:
             raise ValueError("Provider and model name must be set.")
             
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    f"{self.base_url}/check_credentials/{provider}/{name}",
-                    headers=self._default_headers
-                )
+            response = await self._client.get(f"{self.base_url}/check_credentials/{provider}/{name}")
                 
-                if response.status_code != 200:
-                    error_data = response.json()
-                    error_msg = error_data.get("detail", {}).get("message", str(error_data))
-                    
-                    if raise_exception:
-                        raise CredentialsException(f"Credentials check failed: {error_msg}")
-                    return False
-                    
-                return True
+            if response.status_code != 200:
+                error_data = response.json()
+                error_msg = error_data.get("detail", {}).get("message", str(error_data))
+                
+                if raise_exception:
+                    raise CredentialsException(f"Credentials check failed: {error_msg}")
+                return False
+                
+            return True
                 
         except httpx.RequestError as e:
             if raise_exception:
@@ -208,6 +216,7 @@ class LLMServiceClient:
 
         Args:
             request: LLMRequest object containing the conversation and parameters
+            timeout: Optional timeout override for this specific request
 
         Returns:
             LLMResponse: Server response containing the model output
@@ -225,65 +234,69 @@ class LLMServiceClient:
         if not self.provider or not self.name:
             raise ValueError("Model is not set, please set it with client.set_model(provider, name) first!")
         
-        timeout = self.timeout if timeout is None else self._validate_timeout(timeout)
+        # Set timeout for this specific request if provided
+        original_timeout = self._client.timeout
+        if timeout is not None:
+            validated_timeout = self._validate_timeout(timeout)
+            self._client.timeout = httpx.Timeout(validated_timeout)
             
         response_class = request.response_class
         response_format = request.response_format
 
-        # Create a client with limits that allow concurrency
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
-        ) as client:
-            request_data = request.model_dump(mode="json")
+        request_data = request.model_dump(mode="json")
 
-            try:
-                response = await client.post(
-                    f"{self.base_url}/chat/{self.provider}/{self.name}",
-                    json=request_data,
-                    headers=self._default_headers
-                )
-                
-                # Handle non-200 responses
-                if response.status_code != 200:
-                    error_data = response.json()
-                    error_type = error_data.get("detail", {}).get("error", "unknown_error")
-                    error_msg = error_data.get("detail", {}).get("message", str(error_data))
+        try:
+            response = await self._client.post(
+                f"{self.base_url}/chat/{self.provider}/{self.name}",
+                json=request_data
+            )
+            
+            # Handle non-200 responses
+            if response.status_code != 200:
+                error_data = response.json()
+                error_type = error_data.get("detail", {}).get("error", "unknown_error")
+                error_msg = error_data.get("detail", {}).get("message", str(error_data))
 
-                    if response.status_code == 404 and error_type == "model_not_found":
-                        raise ModelNotFoundException(error_msg)
-                    elif response.status_code == 400 and error_type == "internal_conversion_error":
-                        raise InternalConversionException(error_msg)
-                    elif response.status_code == 429 and error_type == "service_throttling":
-                        raise ServiceCallThrottlingException(error_msg)
-                    elif response.status_code == 422 and error_type == "structured_response_error":
-                        raise StructuredResponseException(
-                            error_msg,
-                            xml=error_data.get("detail", {}).get("xml", ""),
-                            return_class=error_data.get("detail", {}).get("return_class")
-                        )
-                    elif response.status_code == 401 and error_type == "credentials_not_set":
-                        raise CredentialsException(error_msg)
-                    elif response.status_code == 502 and error_type == "service_call_error":
-                        raise ServiceCallException(error_msg)
-                    else:
-                        raise ServiceCallException(f"Unexpected error: {error_msg}")
+                if response.status_code == 404 and error_type == "model_not_found":
+                    raise ModelNotFoundException(error_msg)
+                elif response.status_code == 400 and error_type == "internal_conversion_error":
+                    raise InternalConversionException(error_msg)
+                elif response.status_code == 429 and error_type == "service_throttling":
+                    raise ServiceCallThrottlingException(error_msg)
+                elif response.status_code == 422 and error_type == "structured_response_error":
+                    raise StructuredResponseException(
+                        error_msg,
+                        xml=error_data.get("detail", {}).get("xml", ""),
+                        return_class=error_data.get("detail", {}).get("return_class")
+                    )
+                elif response.status_code == 401 and error_type == "credentials_not_set":
+                    raise CredentialsException(error_msg)
+                elif response.status_code == 502 and error_type == "service_call_error":
+                    raise ServiceCallException(error_msg)
+                else:
+                    raise ServiceCallException(f"Unexpected error: {error_msg}")
 
-                llm_response_as_json = response.json()
-                llm_response = LLMResponse.model_validate(llm_response_as_json)
+            llm_response_as_json = response.json()
+            llm_response = LLMResponse.model_validate(llm_response_as_json)
 
-                # Manually convert to StructuredResponse if needed
-                if response_format is LLMResponseFormat.XML and response_class is not str:
-                    llm_response.output = response_class.from_text(llm_response.output)
+            # Manually convert to StructuredResponse if needed
+            if response_format is LLMResponseFormat.XML and response_class is not str:
+                llm_response.output = response_class.from_text(llm_response.output)
 
-                return llm_response
+            return llm_response
 
-            except httpx.TimeoutException as e:
-                raise TimeoutException(f"Request timed out after {timeout:.1f} seconds") from e
-            except httpx.RequestError as e:
-                if isinstance(e, httpx.ReadTimeout):
-                    raise TimeoutException(f"Read timeout after {timeout:.1f} seconds") from e
-                raise ServiceCallException(f"Failed to connect to server: {str(e)}")
+        except httpx.TimeoutException as e:
+            current_timeout = self._client.timeout.read if hasattr(self._client.timeout, 'read') else self._client.timeout
+            raise TimeoutException(f"Request timed out after {current_timeout:.1f} seconds") from e
+        except httpx.RequestError as e:
+            if isinstance(e, httpx.ReadTimeout):
+                current_timeout = self._client.timeout.read if hasattr(self._client.timeout, 'read') else self._client.timeout
+                raise TimeoutException(f"Read timeout after {current_timeout:.1f} seconds") from e
+            raise ServiceCallException(f"Failed to connect to server: {str(e)}")
+        finally:
+            # Restore original timeout
+            if timeout is not None:
+                self._client.timeout = original_timeout
 
     async def model_health_check(self, timeout: float = 5.0) -> bool:
         """

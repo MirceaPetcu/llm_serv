@@ -100,7 +100,8 @@ async def list_providers() -> list[str]:
 async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLMResponse:
     try:
         logger.warning(f"Chatting with model {model_provider}/{model_name}")
-        logger.info(f"Request: {request}")
+
+        logger.info(f"Request: {request.model_dump(exclude={'conversation'})}")
 
         # First of all, check if the model is available
         try:
@@ -126,20 +127,23 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
             # This is async now, so await it
             response = await llm_service(request)
             
-            logger.info(f"Response: {response}")
+            logger.info(f"Response: {response.model_dump(exclude={'conversation'})}")
             return response
 
         except InternalConversionException as e:
+            logger.warning(f"Internal conversion error: {str(e)}")
             raise HTTPException(
                 status_code=400,
                 detail={"error": "internal_conversion_error", "message": str(e)},
             ) from e
         except ServiceCallThrottlingException as e:
+            logger.warning(f"Service call throttling error: {str(e)}")
             raise HTTPException(
                 status_code=429,
                 detail={"error": "service_throttling", "message": str(e)},
             ) from e
         except StructuredResponseException as e:
+            logger.warning(f"Structured response error: {str(e)}")
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -150,8 +154,9 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
                 },
             ) from e
         except ServiceCallException as e:
+            logger.warning(f"Service call error: {str(e)}")
             raise HTTPException(status_code=502, detail={"error": "service_call_error", "message": str(e)}) from e
-        except Exception as e:
+        except Exception as e:            
             logger.error(f"LLM service error: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=500,
