@@ -69,8 +69,8 @@ async def main():
     print("AWS models:", aws_models)
 
     # 5. Set the model to use
-    #client.set_model(provider="AWS", name="claude-3-haiku")
-    client.set_model(provider="OPENAI", name="gpt-4o-mini")
+    client.set_model(provider="AWS", name="claude-3-haiku")
+    #client.set_model(provider="OPENAI", name="gpt-4o-mini")
 
     # 6. Model test
     test = await client.model_health_check()
@@ -81,8 +81,13 @@ async def main():
     conversation = Conversation.from_prompt("What's 1+1?")
     request = LLMRequest(conversation=conversation)
     response = await client.chat(request)
+    rprint("Full Response 1:", response)
 
-    rprint("Full Response:", response)
+    response = await client.chat(request)
+    rprint("Full Response 2:", response)
+
+    response = await client.chat(request)
+    rprint("Full Response 3:", response)
 
     rprint("Output:", response.output)
 

@@ -1,5 +1,5 @@
 import httpx
-import asyncio
+from rich import print as rprint
 
 from llm_serv.exceptions import InternalConversionException, ModelNotFoundException, ServiceCallException, ServiceCallThrottlingException, StructuredResponseException, TimeoutException, CredentialsException
 from llm_serv.providers.base import LLMRequest, LLMResponse, LLMResponseFormat
@@ -286,9 +286,13 @@ class LLMServiceClient:
             return llm_response
 
         except httpx.TimeoutException as e:
+            rprint(f"[bold red]Request timed out after {self._client.timeout.read:.1f} seconds[/bold red]")
+            
             current_timeout = self._client.timeout.read if hasattr(self._client.timeout, 'read') else self._client.timeout
             raise TimeoutException(f"Request timed out after {current_timeout:.1f} seconds") from e
         except httpx.RequestError as e:
+            rprint(f"[bold red]Request error: {str(e)}[/bold red]")
+
             if isinstance(e, httpx.ReadTimeout):
                 current_timeout = self._client.timeout.read if hasattr(self._client.timeout, 'read') else self._client.timeout
                 raise TimeoutException(f"Read timeout after {current_timeout:.1f} seconds") from e
