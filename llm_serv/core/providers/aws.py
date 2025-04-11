@@ -2,16 +2,19 @@ import os
 import time
 import asyncio
 
-import boto3
+import aioboto3
 from pydantic import Field
 from rich import print
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.role import Role
-from llm_serv.exceptions import CredentialsException, InternalConversionException, ServiceCallException, ServiceCallThrottlingException
-from llm_serv.providers.base import LLMRequest, LLMResponseFormat, LLMService, LLMTokens
-from llm_serv.registry import Model
+from llm_serv.core.exceptions import CredentialsException, InternalConversionException, ServiceCallException, ServiceCallThrottlingException
+from llm_serv.core.base import LLMProvider
+from llm_serv.core.components.request import LLMRequest
+from llm_serv.core.components.response import LLMResponse
+from llm_serv.core.components.tokens import LLMTokens
+
+from llm_serv.api import Model
 from llm_serv.structured_response.model import StructuredResponse
 
 
@@ -29,7 +32,7 @@ def check_credentials() -> None:
         )
 
 
-class AWSLLMService(LLMService):
+class AWSLLMProvider(LLMProvider):
     def __init__(self, model: Model):
         super().__init__(model)
 
@@ -37,20 +40,33 @@ class AWSLLMService(LLMService):
         self._model_max_tokens = model.max_output_tokens
 
         from botocore.config import Config
+        self._config = Config(retries={"max_attempts": 5, "mode": "adaptive"})
+        self._session = None
+        self._client = None
 
-        config = Config(retries={"max_attempts": 5, "mode": "adaptive"})
+    async def _get_client(self):
+        """Get or create an async bedrock-runtime client"""
+        if self._client is None:
+            self._session = aioboto3.Session(region_name=os.getenv("AWS_DEFAULT_REGION"))
+            self._client = await self._session.client(
+                service_name="bedrock-runtime",
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                config=self._config,
+            ).__aenter__()
+        return self._client
 
-        self._client = boto3.session.Session(region_name=os.getenv("AWS_DEFAULT_REGION")).client(
-            service_name="bedrock-runtime",
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-            config=config,
-        )
+    async def __del__(self):
+        """Clean up the client session when the provider is destroyed"""
+        if self._client is not None:
+            await self._client.__aexit__(None, None, None)
+            self._client = None
+            self._session = None
 
-    def _convert(self, request: LLMRequest) -> tuple[list, dict, dict]:
+    async def _convert(self, request: LLMRequest) -> dict:
         """
         Ref here: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html
-        returns (messages, system, config)
+        returns processed request data as a dictionary
 
         Example of response:
         response = client.converse(
@@ -163,81 +179,54 @@ class AWSLLMService(LLMService):
                 "topP": request.top_p,
             }
 
-            return messages, system, config
+            return {
+                "messages": messages,
+                "system": system,
+                "config": config
+            }
         except Exception as e:
             raise InternalConversionException(f"Failed to convert request for AWS: {str(e)}") from e
-    
-    @staticmethod
-    async def async_retry(func, *args, **kwargs):
-        max_attempts = 5
-        attempt = 0
-        last_exception = None
-        start_time = time.time()
-        
-        while attempt < max_attempts:
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                attempt += 1
-                last_exception = e
-                
-                # Handle throttling specifically
-                if hasattr(e, "response") and e.response["ResponseMetadata"]["HTTPStatusCode"] == 429:
-                    if attempt >= max_attempts:
-                        raise ServiceCallThrottlingException(
-                            f"ThrottlingException: Request denied due to exceeding account quotas after "
-                            f"{attempt} attempts over {time.time() - start_time:.1f} seconds"
-                        ) from e
-                
-                # Exponential backoff
-                wait_time = min(60, 3 * (2 ** (attempt - 1)))
-                await asyncio.sleep(wait_time)
-        
-        # If we got here, we exhausted our retries
-        raise ServiceCallException(f"Service call failed after {max_attempts} attempts: {str(last_exception)}")
 
-    async def _service_call(
-        self,
-        messages: list[dict],
-        system: dict | None,
-        config: dict,
-    ) -> tuple[str | None, LLMTokens, Exception | None]:
-        output = None
-        tokens = LLMTokens()
-        exception = None
+    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, LLMTokens]:
+        """
+        Make a call to AWS Bedrock with proper error handling.
+        Returns a tuple of (output_text, tokens_info)
+        """
+        # Prepare request data
+        try:
+            processed = await self._convert(request)
+            messages = processed["messages"]
+            system = processed["system"]
+            config = processed["config"]
+        except Exception as e:
+            raise InternalConversionException(f"Failed to convert request: {str(e)}") from e
 
-        # Run boto3 client in a thread pool since it's synchronous
-        async def _make_api_call():
-            loop = asyncio.get_event_loop()
-            if system:
-                return await loop.run_in_executor(
-                    None,
-                    lambda: self._client.converse(
-                        modelId=self.model.id,
-                        messages=messages,
-                        system=system,
-                        inferenceConfig=config,
-                    )
-                )
-            else:
-                return await loop.run_in_executor(
-                    None,
-                    lambda: self._client.converse(
-                        modelId=self.model.id,
-                        messages=messages,
-                        inferenceConfig=config,
-                    )
-                )
+        client = await self._get_client()
 
         try:
-            # Use our custom retry mechanism
-            api_response = await self.async_retry(_make_api_call)
+            # Now we can use async calls directly
+            if system:
+                api_response = await client.converse(
+                    modelId=self.model.internal_model_id,
+                    messages=messages,
+                    system=system,
+                    inferenceConfig=config,
+                )
+            else:
+                api_response = await client.converse(
+                    modelId=self.model.internal_model_id,
+                    messages=messages,
+                    inferenceConfig=config,
+                )
 
             output = api_response["output"]["message"]["content"][0]["text"]
             tokens = LLMTokens(
                 input_tokens=api_response["usage"]["inputTokens"],
                 completion_tokens=api_response["usage"]["outputTokens"],
+                total_tokens=api_response["usage"]["inputTokens"] + api_response["usage"]["outputTokens"]
             )
+
+            return output, tokens
 
         except Exception as e:
             if hasattr(e, "response"):
@@ -255,14 +244,10 @@ class AWSLLMService(LLMService):
                 elif status_code == 424:
                     raise ServiceCallException(f"ModelErrorException: The request failed due to a model processing error: {error_msg}")
                 elif status_code == 429:
-                    # Get retry state from the function wrapper
-                    statistics = getattr(self._service_call, "statistics", None)
-                    if statistics and statistics["attempt_number"] >= 5:
-                        raise ServiceCallThrottlingException(
-                            f"ThrottlingException: Request denied due to exceeding account quotas after "
-                            f"{statistics['attempt_number']} attempts over {statistics['delay_since_first_attempt']:.1f} seconds"
-                        )
-                    raise  # Let tenacity retry
+                    # Let the base class handle the retries for throttling exceptions
+                    raise ServiceCallThrottlingException(
+                        f"ThrottlingException: Request denied due to exceeding account quotas"
+                    )
                 elif status_code == 500:
                     raise ServiceCallException(f"InternalServerException: An internal server error occurred: {error_msg}")
                 elif status_code == 503:
@@ -270,20 +255,17 @@ class AWSLLMService(LLMService):
 
             raise ServiceCallException(f"Unexpected AWS service error: {str(e)}")
 
-        return output, tokens, exception
-
 
 if __name__ == "__main__":
-    import asyncio
-    from llm_serv.api import get_llm_service
-    from llm_serv.registry import REGISTRY
+    import asyncio    
+    from llm_serv.api import REGISTRY
     from llm_serv.conversation.role import Role
     from llm_serv.structured_response.model import StructuredResponse
     from pydantic import Field
 
     async def test_aws():
         model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
-        llm = await get_llm_service(model)
+        llm = AWSLLMProvider(model)
 
         class MyClass(StructuredResponse):
             example_string: str = Field(
@@ -301,7 +283,7 @@ if __name__ == "__main__":
         conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
         conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
 
-        request = LLMRequest(conversation=conversation, response_class=MyClass, response_format=LLMResponseFormat.XML)
+        request = LLMRequest(conversation=conversation, response_model=MyClass)
 
         response = await llm(request)
 

@@ -1,21 +1,24 @@
 """
 TODO: Fix code, https://github.com/openai/openai-python/issues/874
+Error codes: https://platform.openai.com/docs/guides/error-codes
 """
 import os
 import time
 import asyncio
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 from pydantic import Field
 
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.image import Image
 from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
-from llm_serv.exceptions import CredentialsException, ServiceCallException, ServiceCallThrottlingException
-from llm_serv.providers.base import (LLMRequest, LLMResponseFormat, LLMService,
-                                     LLMTokens)
-from llm_serv.registry import Model
+from llm_serv.core.base import LLMProvider
+from llm_serv.core.components.request import LLMRequest
+from llm_serv.core.components.tokens import LLMTokens
+from llm_serv.core.exceptions import CredentialsException, InternalConversionException, ServiceCallException, ServiceCallThrottlingException
+
+from llm_serv.api import Model
 from llm_serv.structured_response.model import StructuredResponse
 
 
@@ -32,7 +35,7 @@ def check_credentials() -> None:
             f"Missing required environment variables for OpenAI: {', '.join(missing_vars)}"
         )
 
-class OpenAILLMService(LLMService):
+class OpenAILLMProvider(LLMProvider):
     def __init__(self, model: Model):
         super().__init__(model)        
         
@@ -42,7 +45,7 @@ class OpenAILLMService(LLMService):
             project=os.getenv("OPENAI_PROJECT")
         )
 
-    def _convert(self, request: LLMRequest) -> tuple[list, dict, dict]:
+    async def _convert(self, request: LLMRequest) -> dict:
         """
         Ref here: https://platform.openai.com/docs/api-reference/chat/object
         https://platform.openai.com/docs/guides/vision#multiple-image-inputs
@@ -147,71 +150,48 @@ class OpenAILLMService(LLMService):
 
             messages.append({"role": message.role.value, "content": content})
 
+        """
+        TODO: strict format handling
+        "response_format": (
+            {"type": "json_object"} if request.response_format == LLMResponseFormat.JSON else {"type": "text"}
+        ),
+        """
+        
         config = {
             "max_tokens": request.max_completion_tokens,
             "temperature": request.temperature,
             "top_p": request.top_p,
-            "response_format": (
-                {"type": "json_object"} if request.response_format == LLMResponseFormat.JSON else {"type": "text"}
-            ),
+            "response_format": ({"type": "text"})
         }
 
-        return messages, None, config
+        return {
+            "messages": messages,            
+            "config": config
+        }
+    
 
-    # Tenacity doesn't work well with async functions, so we implement our own retry
-    @staticmethod
-    async def async_retry(func, max_attempts=5, initial_backoff=1, backoff_multiplier=2):
-        """Retry an async function with exponential backoff."""
-        attempt = 0
-        last_exception = None
-        start_time = time.time()
-        
-        while attempt < max_attempts:
-            try:
-                # The function itself should be awaitable, not its result
-                return await func()
-            except Exception as e:
-                attempt += 1
-                last_exception = e
-                
-                # Handle throttling specifically
-                if hasattr(e, "status_code") and e.status_code == 429:
-                    if attempt >= max_attempts:
-                        elapsed = time.time() - start_time
-                        raise ServiceCallThrottlingException(
-                            f"OpenAI service is throttling requests after {attempt} attempts over {elapsed:.1f} sec."
-                        ) from e
-                
-                # Exponential backoff
-                wait_time = min(60, initial_backoff * (backoff_multiplier ** (attempt - 1)))
-                await asyncio.sleep(wait_time)
-        
-        # If we got here, we exhausted our retries
-        raise ServiceCallException(f"Service call failed after {max_attempts} attempts: {str(last_exception)}")
-
-    async def _service_call(
+    async def _llm_service_call(
         self,
-        messages: list[dict],
-        system: dict | None,
-        config: dict,
-    ) -> tuple[str | None, LLMTokens, Exception | None]:
-        output = None
-        tokens = LLMTokens()
-        exception = None
+        request: LLMRequest,
+    ) -> tuple[str, LLMTokens]:
+        # prepare request
+        try:
+            processed = await self._convert(request)
+            config = processed["config"]
+            messages = processed["messages"]
+        except Exception as e:
+            raise InternalConversionException(f"Failed to convert request: {str(e)}") from e
 
-        async def _make_api_call():
-            # OpenAI's new client is already async-aware, no need to await
-            return await self._client.chat.completions.create(
-                model=self.model.id,
+        # call the LLM provider, no need to retry, it is handled in the base class
+        try:            
+            api_response = await self._client.chat.completions.create(
+                model=self.model.internal_model_id,
                 messages=messages,
                 max_tokens=config["max_tokens"],
                 temperature=config["temperature"],
                 top_p=config["top_p"],
                 response_format=config["response_format"],
             )
-        
-        try:
-            api_response = await self.async_retry(_make_api_call)
             
             output = api_response.choices[0].message.content
             tokens = LLMTokens(
@@ -221,27 +201,26 @@ class OpenAILLMService(LLMService):
             )
 
         except Exception as e:
-            if hasattr(e, "status_code"):
-                if e.status_code == 400:
-                    raise ServiceCallException(f"Bad request: {str(e)}")
-                # Other error codes...
+            if isinstance(e, RateLimitError):  # package specific exception into our own for base class processing
+                raise ServiceCallThrottlingException(f"OpenAI service is throttling requests: {str(e)}") from e
+            
+            # TODO: handle other error codes properly here
             
             raise ServiceCallException(f"OpenAI service error: {str(e)}")
 
-        return output, tokens, exception
+        return output, tokens
 
 
 if __name__ == "__main__":
-    import asyncio
-    from llm_serv.api import get_llm_service
-    from llm_serv.registry import REGISTRY
+    import asyncio    
+    from llm_serv.api import REGISTRY
     from llm_serv.conversation.role import Role
     from llm_serv.structured_response.model import StructuredResponse
     from pydantic import Field
 
     async def test_openai():
         model = REGISTRY.get_model(provider="OPENAI", name="gpt-4o-mini")
-        llm = await get_llm_service(model)
+        llm = OpenAILLMProvider(model)
 
         class MyClass(StructuredResponse):
             example_string: str = Field(
@@ -259,7 +238,7 @@ if __name__ == "__main__":
         conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
         conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
 
-        request = LLMRequest(conversation=conversation, response_class=MyClass, response_format=LLMResponseFormat.XML)
+        request = LLMRequest(conversation=conversation, response_model=MyClass)
 
         response = await llm(request)
 

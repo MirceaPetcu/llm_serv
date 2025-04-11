@@ -1,8 +1,8 @@
 import pytest
 
-from llm_serv.api import list_providers, list_models, get_llm_service
-from llm_serv.registry import REGISTRY
-from llm_serv.providers.base import LLMService
+from llm_serv.api import list_providers, list_models, get_provider
+from llm_serv.api import REGISTRY
+from llm_serv.core.base import LLMService
 
 @pytest.mark.asyncio
 async def test_list_providers():
@@ -48,7 +48,7 @@ async def test_get_llm_service():
         model = models[0]
         
         try:
-            service = await get_llm_service(model)
+            service = await get_provider(model)
             assert isinstance(service, LLMService)
             assert service.model.id == model.id
             assert service.model.provider.name == provider
@@ -73,6 +73,6 @@ async def test_get_llm_service_raises_for_invalid_provider():
     invalid_model.provider.name = "NONEXISTENT_PROVIDER"
     
     with pytest.raises(ValueError) as excinfo:
-        await get_llm_service(invalid_model)
+        await get_provider(invalid_model)
     
     assert "Unsupported provider: NONEXISTENT_PROVIDER" in str(excinfo.value)

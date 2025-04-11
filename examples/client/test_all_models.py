@@ -19,7 +19,7 @@ from rich.table import Table
 from rich.text import Text
 
 from llm_serv import LLMServiceClient, Conversation, LLMRequest, LLMResponse
-from llm_serv.exceptions import ServiceCallException, TimeoutException
+from llm_serv.core.exceptions import ServiceCallException, TimeoutException
 
 console = Console()
 

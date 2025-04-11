@@ -40,57 +40,42 @@ import asyncio
 from rich import print as rprint
 
 from llm_serv import LLMServiceClient, Conversation, LLMRequest
-from llm_serv.exceptions import ServiceCallException
 
 async def main():
     # 1. Initialize the client
     client = LLMServiceClient(host="localhost", port=9999, timeout=10)
 
-    # 2. Health check
-    try:
-        await client.server_health_check(timeout=0.5)   
-        print("Health check: OK")
-    except ServiceCallException as e:
-        print("Health check: Failed")
-        print(e)
-
-    # 3. List available providers
+    # 2 List available providers
     # Returns a list of provider names like ["AWS", "AZURE", "OPENAI"]
     providers = await client.list_providers()
     print("Available providers:", providers)
 
-    # 4. List available models
+    # 3. List available models
     # Returns all models across all providers
     all_models = await client.list_models()
     print("All available models:", all_models)
 
-    # List models for a specific provider
+    # 4. List models for a specific provider
     aws_models = await client.list_models(provider="AWS")
     print("AWS models:", aws_models)
 
     # 5. Set the model to use
-    client.set_model(provider="AWS", name="claude-3-haiku")
-    #client.set_model(provider="OPENAI", name="gpt-4o-mini")
+    # Updated to use the new API with model_id in format "provider/name"
+    client.set_model("AWS/claude-3-haiku")
+    # Alternative model:
+    # client.set_model("OPENAI/gpt-4o-mini")
 
     # 6. Model test
-    test = await client.model_health_check()
-    print("Model test:", test)
-
+    # Since model_health_check isn't defined in client.py, we'll skip this
+    # and just print a message
+    print("Model set to:", client.model_id)
 
     # 7. Create and send a chat request
     conversation = Conversation.from_prompt("What's 1+1?")
     request = LLMRequest(conversation=conversation)
     response = await client.chat(request)
-    rprint("Full Response 1:", response)
 
-    response = await client.chat(request)
-    rprint("Full Response 2:", response)
-
-    response = await client.chat(request)
-    rprint("Full Response 3:", response)
-
-    rprint("Output:", response.output)
-
+    rprint("Full Response:", response)
     rprint("Token Usage:", response.tokens)
 
 

@@ -3,9 +3,9 @@ from typing import Optional
 import asyncio
 
 from pydantic import Field
-from llm_serv.providers.base import LLMRequest, LLMResponseFormat
-from llm_serv.registry import REGISTRY
-from llm_serv.api import get_llm_service
+from llm_serv.core.base import LLMRequest, LLMResponseFormat
+from llm_serv.api import REGISTRY
+from llm_serv.api import get_provider
 from llm_serv.conversation import Conversation
 from rich import print as rprint
 
@@ -40,7 +40,7 @@ class WeatherPrognosis(StructuredResponse):
 
 async def main():
     model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
-    llm_service = await get_llm_service(model)
+    llm_service = await get_provider(model)
 
     input_text = """
     The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.

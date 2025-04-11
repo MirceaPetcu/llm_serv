@@ -1,4 +1,4 @@
-from llm_serv.exceptions import StructuredResponseException
+from llm_serv.core.exceptions import StructuredResponseException
 from typing import Type, get_origin, get_args, Union, List, Optional, Any, Dict
 from enum import Enum
 from pydantic import BaseModel

@@ -4,10 +4,9 @@
     interaction with the LLM providers.
 
     Key Components:
-    - REGISTRY: Central registry containing available providers and models
+    - LLMService: Singleton service providing access to models and providers
     - LLMRequest: Request object containing conversation and optional parameters
     - Conversation: Object managing the chat history and messages
-    - get_llm_service: Factory function to create provider-specific LLM services
 
     Prerequisites:
     Ensure you have the proper credentials set up for the provider(s) you want to use:
@@ -25,8 +24,8 @@
 
     Basic Usage:
     1. List available providers and models
-    2. Select a model from the registry
-    3. Create an LLM service instance
+    2. Select a model using LLMService.get_model()
+    3. Create an LLM provider instance using LLMService.get_provider()
     4. Create a conversation and request
     5. Send the request and get response
 """
@@ -35,29 +34,29 @@ import asyncio
 import os
 from rich import print as rprint
 
-from llm_serv.api import get_llm_service
+from llm_serv import LLMService
 from llm_serv.conversation import Conversation
-from llm_serv.providers.base import LLMRequest
-from llm_serv.registry import REGISTRY
-from llm_serv.exceptions import ServiceCallException, TimeoutException
+from llm_serv.core.base import LLMRequest
+from llm_serv.core.exceptions import ServiceCallException, TimeoutException
 
 
 async def main():
     # 1. List available providers
     print("\nAvailable Providers:")
-    providers = REGISTRY.providers
+    providers = LLMService.list_providers()
     for provider in providers:
         rprint(f"- {provider}")
 
     # 2. List available models
     print("\nAvailable Models:")
-    models = REGISTRY.models
+    models = LLMService.list_models()
     for model in models:
         rprint(model)
 
     # Check if we have the necessary credentials
     provider = "OPENAI"
     model_name = "gpt-4o-mini"
+    model_id = f"{provider}/{model_name}"
     
     # Check OpenAI API key
     if not os.getenv("OPENAI_API_KEY"):
@@ -67,11 +66,11 @@ async def main():
 
     # 3. Select a model and create service
     try:
-        model = REGISTRY.get_model(provider=provider, name=model_name)
-        print(f"\nSelected model: {provider}/{model_name}")
+        model = LLMService.get_model(model_id)
+        print(f"\nSelected model: {model_id}")
         
-        # Set a timeout for service creation
-        llm_service = await asyncio.wait_for(get_llm_service(model), timeout=10.0)
+        # Create LLM provider
+        llm_service = LLMService.get_provider(model)
         print("Service created successfully")
         
         # 4. Create conversation and request

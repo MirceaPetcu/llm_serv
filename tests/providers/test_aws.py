@@ -3,9 +3,9 @@ import pytest
 
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.role import Role
-from llm_serv.providers.aws import AWSLLMService, check_credentials
-from llm_serv.providers.base import LLMRequest
-from llm_serv.registry import REGISTRY
+from llm_serv.core.aws import AWSLLMService, check_credentials
+from llm_serv.core.base import LLMRequest
+from llm_serv.api import REGISTRY
 
 
 @pytest.fixture

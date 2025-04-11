@@ -1,25 +1,27 @@
+"""
+TODO: Fix code, https://github.com/openai/openai-python/issues/874
+"""
 import os
 import time
 import asyncio
 
-from openai import AzureOpenAI
+from openai import AsyncOpenAI
 from pydantic import Field
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.image import Image
 from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
-from llm_serv.exceptions import CredentialsException, ServiceCallException, ServiceCallThrottlingException
-from llm_serv.providers.base import (LLMRequest, LLMResponseFormat, LLMService,
+from llm_serv.core.exceptions import CredentialsException, ServiceCallException, ServiceCallThrottlingException
+from llm_serv.core.base import (LLMRequest, LLMResponseFormat, LLMService,
                                      LLMTokens)
-from llm_serv.registry import Model
+from llm_serv.api import Model
 from llm_serv.structured_response.model import StructuredResponse
 
 
 def check_credentials() -> None:
-    required_variables = ["AZURE_OPENAI_API_KEY", "AZURE_OPEN_AI_API_VERSION", "AZURE_OPENAI_DEPLOYMENT_NAME"]
-    
+    required_variables = ["OPENAI_API_KEY", "OPENAI_ORGANIZATION", "OPENAI_PROJECT"]
+        
     missing_vars = []
     for var in required_variables:
         if not os.getenv(var):
@@ -27,18 +29,17 @@ def check_credentials() -> None:
     
     if missing_vars:
         raise CredentialsException(
-            f"Missing required environment variables for Azure: {', '.join(missing_vars)}"
+            f"Missing required environment variables for OpenAI: {', '.join(missing_vars)}"
         )
 
-
-class AzureOpenAILLMService(LLMService):
+class OpenAILLMService(LLMService):
     def __init__(self, model: Model):
         super().__init__(model)        
-
-        self._client = AzureOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_OPEN_AI_API_VERSION"),
-            azure_endpoint=f"https://{os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')}.openai.azure.com",
+        
+        # The OpenAI client is already async-compatible
+        self._client = AsyncOpenAI(
+            organization=os.getenv("OPENAI_ORGANIZATION"),
+            project=os.getenv("OPENAI_PROJECT")
         )
 
     def _convert(self, request: LLMRequest) -> tuple[list, dict, dict]:
@@ -159,15 +160,16 @@ class AzureOpenAILLMService(LLMService):
 
     # Tenacity doesn't work well with async functions, so we implement our own retry
     @staticmethod
-    async def async_retry(func, *args, **kwargs):
-        max_attempts = 5
+    async def async_retry(func, max_attempts=5, initial_backoff=1, backoff_multiplier=2):
+        """Retry an async function with exponential backoff."""
         attempt = 0
         last_exception = None
         start_time = time.time()
         
         while attempt < max_attempts:
             try:
-                return await func(*args, **kwargs)
+                # The function itself should be awaitable, not its result
+                return await func()
             except Exception as e:
                 attempt += 1
                 last_exception = e
@@ -177,12 +179,11 @@ class AzureOpenAILLMService(LLMService):
                     if attempt >= max_attempts:
                         elapsed = time.time() - start_time
                         raise ServiceCallThrottlingException(
-                            f"Azure service is throttling requests after {attempt} attempts "
-                            f"over {elapsed:.1f} seconds"
+                            f"OpenAI service is throttling requests after {attempt} attempts over {elapsed:.1f} sec."
                         ) from e
                 
                 # Exponential backoff
-                wait_time = min(60, 3 * (2 ** (attempt - 1)))
+                wait_time = min(60, initial_backoff * (backoff_multiplier ** (attempt - 1)))
                 await asyncio.sleep(wait_time)
         
         # If we got here, we exhausted our retries
@@ -199,8 +200,8 @@ class AzureOpenAILLMService(LLMService):
         exception = None
 
         async def _make_api_call():
-            # OpenAI's client supports async
-            response = await self._client.chat.completions.create(
+            # OpenAI's new client is already async-aware, no need to await
+            return await self._client.chat.completions.create(
                 model=self.model.id,
                 messages=messages,
                 max_tokens=config["max_tokens"],
@@ -208,7 +209,6 @@ class AzureOpenAILLMService(LLMService):
                 top_p=config["top_p"],
                 response_format=config["response_format"],
             )
-            return response
         
         try:
             api_response = await self.async_retry(_make_api_call)
@@ -224,23 +224,24 @@ class AzureOpenAILLMService(LLMService):
             if hasattr(e, "status_code"):
                 if e.status_code == 400:
                     raise ServiceCallException(f"Bad request: {str(e)}")
-                # Other error checks can be added here if needed
-            raise ServiceCallException(f"Azure service error: {str(e)}")
+                # Other error codes...
+            
+            raise ServiceCallException(f"OpenAI service error: {str(e)}")
 
         return output, tokens, exception
 
 
 if __name__ == "__main__":
-    import asyncio
-    from llm_serv.api import get_llm_service
-    from llm_serv.registry import REGISTRY
+    import asyncio    
+    from llm_serv.api import LLMService
+    from llm_serv.api import REGISTRY
     from llm_serv.conversation.role import Role
     from llm_serv.structured_response.model import StructuredResponse
     from pydantic import Field
 
-    async def test_azure():
-        model = REGISTRY.get_model(provider="AZURE", name="gpt-4o-mini")
-        llm = await get_llm_service(model)
+    async def test_openai():
+        model:Model = LLMService.get_model("OPENAI/gpt-4o-mini")        
+        llm: OpenAILLMService = LLMService.get_provider(model)
 
         class MyClass(StructuredResponse):
             example_string: str = Field(
@@ -267,4 +268,4 @@ if __name__ == "__main__":
         assert isinstance(response.output, MyClass)
 
     # Run the test function with asyncio
-    asyncio.run(test_azure())
+    asyncio.run(test_openai())

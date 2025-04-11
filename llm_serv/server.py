@@ -8,34 +8,52 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 
-from llm_serv.api import get_llm_service
-from llm_serv.exceptions import (
+from llm_serv.api import LLMService
+from llm_serv.core.exceptions import (
     InternalConversionException,
     ServiceCallException,
     ServiceCallThrottlingException,
     StructuredResponseException,
     CredentialsException,
 )
-from llm_serv.providers.base import LLMRequest, LLMResponse
-from llm_serv.registry import REGISTRY, Model
+from llm_serv.core.base import LLMProvider, LLMRequest, LLMResponse
+from llm_serv.api import REGISTRY, Model, ModelProvider
 
-logger = logging.getLogger(__name__)
-
+# Use uvicorn's logger instead of creating your own
+logger = logging.getLogger("uvicorn")
 
 def create_app() -> FastAPI:
-    # Configure logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
+    # Initialize the registry first
     try:
-        # Initialize the registry first
         logger.info("Initializing LLM Registry...")
         _ = REGISTRY.models
         logger.info(f"Registry initialized with {len(REGISTRY.models)} models")
     except Exception as e:
         logger.error(f"Failed to initialize registry: {str(e)}")
         raise
-
+    
+    # Initialize the FastAPI app
     app = FastAPI(title="LLMService", version="1.0", docs_url="/docs", redoc_url="/redoc")
+    
+    # Set up the LLM Providers
+    try:
+        app.state.providers = {}
+        models:list[Model] = LLMService.list_models()
+        for model in models:
+            if model.provider.name not in app.state.providers:
+                app.state.providers[model.provider.name] = {}
+            assert model.name not in app.state.providers[model.provider.name], f"Model {model.name} already exists in provider {model.provider.name}!"
+            try:
+                app.state.providers[model.provider.name][model.name] = LLMService.get_provider(model)
+                logger.info(f"Set up LLM Provider for {model.provider.name}/{model.name}")
+            except CredentialsException as e:
+                logger.error(f"Failed to set up LLM Provider for {model.provider.name}/{model.name}: {str(e)}")
+                    
+    except Exception as e:
+        logger.error(f"Failed to set up LLM Providers: {str(e)}")
+        raise
+
+    
 
     # Store startup time and initialize metrics
     app.state.start_time = time.time()
@@ -63,15 +81,13 @@ def create_app() -> FastAPI:
 
     return app
 
-
 app = create_app()
 
-
-@app.get("/list_models")
-async def list_models() -> list[Model]:
+@app.post("/list_models")
+async def list_models(provider: str | None = None) -> list[Model]:
     try:
         logger.info("Listing models...")
-        models = REGISTRY.models
+        models:list[Model] = LLMService.list_models(provider)
         logger.info(f"Found {len(models)} models")
         return models
     except Exception as e:
@@ -82,11 +98,10 @@ async def list_models() -> list[Model]:
 
 
 @app.get("/list_providers")
-async def list_providers() -> list[str]:
+async def list_providers() -> list[ModelProvider]:
     try:
         logger.info("Listing providers...")
-        providers = list({model.provider.name for model in REGISTRY.models})
-        logger.info(f"Found {len(providers)} providers: {providers}")
+        providers:list[ModelProvider] = LLMService.list_providers()
         return providers
     except Exception as e:
         logger.error(f"Failed to list providers: {str(e)}", exc_info=True)
@@ -103,9 +118,10 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
 
         logger.info(f"Request: {request.model_dump(exclude={'conversation'})}")
 
-        # First of all, check if the model is available
+        # First of all, check if the model and providers are available
         try:
-            model = REGISTRY.get_model(provider=model_provider, name=model_name)
+            assert model_provider in app.state.providers, f"Provider {model_provider} not found"
+            assert model_name in app.state.providers[model_provider], f"Model {model_name} not found in provider {model_provider}"
         except ValueError as e:
             logger.error(f"Model not found: {model_provider}/{model_name}")
             raise HTTPException(
@@ -117,11 +133,11 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
         app.state.chat_request_count += 1
 
         # Update model-specific usage counter with detailed metrics
-        model_key = f"{model_provider}.{model_name}"
+        model_key = f"{model_provider}/{model_name}"
         app.state.model_usage[model_key] = app.state.model_usage.get(model_key, 0) + 1
 
         # Get the LLM service for this model
-        llm_service = await get_llm_service(model)
+        llm_service:LLMProvider = app.state.providers[model_provider][model_name]
 
         try:
             # This is async now, so await it
@@ -131,43 +147,43 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
             return response
 
         except InternalConversionException as e:
-            logger.warning(f"Internal conversion error: {str(e)}")
+            logger.warning(f"Internal conversion exception: {str(e)}")
             raise HTTPException(
                 status_code=400,
-                detail={"error": "internal_conversion_error", "message": str(e)},
+                detail={"error": "internal_conversion_exception", "message": str(e)},
             ) from e
         except ServiceCallThrottlingException as e:
-            logger.warning(f"Service call throttling error: {str(e)}")
+            logger.warning(f"Service call throttling exception: {str(e)}")
             raise HTTPException(
                 status_code=429,
-                detail={"error": "service_throttling", "message": str(e)},
+                detail={"error": "service_throttling_exception", "message": str(e)},
             ) from e
         except StructuredResponseException as e:
-            logger.warning(f"Structured response error: {str(e)}")
+            logger.warning(f"Structured response exception: {str(e)}")
             raise HTTPException(
                 status_code=422,
                 detail={
-                    "error": "structured_response_error",
+                    "error": "structured_response_exception",
                     "message": str(e),
                     "xml": e.xml,
                     "return_class": str(e.return_class) if e.return_class else None,
                 },
             ) from e
         except ServiceCallException as e:
-            logger.warning(f"Service call error: {str(e)}")
-            raise HTTPException(status_code=502, detail={"error": "service_call_error", "message": str(e)}) from e
+            logger.warning(f"Service call exception: {str(e)}")
+            raise HTTPException(status_code=502, detail={"error": "service_call_exception", "message": str(e)}) from e
         except Exception as e:            
             logger.error(f"LLM service error: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=500,
-                detail={"error": "internal_server_error", "message": f"Error processing chat request: {str(e)}"},
+                detail={"error": "llm_service_exception", "message": f"Error processing chat request: {str(e)}"},
             ) from e
 
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+        logger.error(f"Unexpected exception: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"error": "internal_server_error", "message": f"Unexpected error: {str(e)}"},
+            detail={"error": "llm_service_exception", "message": f"Unexpected error: {str(e)}"},
         ) from e
 
 
@@ -239,13 +255,13 @@ async def check_credentials(model_provider: str, model_name: str):
         try:
             match provider_name:
                 case "AWS":
-                    from llm_serv.providers.aws import check_credentials
+                    from llm_serv.core.aws import check_credentials
                     check_credentials()
                 case "AZURE":
-                    from llm_serv.providers.azure import check_credentials
+                    from llm_serv.core.azure import check_credentials
                     check_credentials()
                 case "OPENAI":
-                    from llm_serv.providers.oai import check_credentials
+                    from llm_serv.core.oai import check_credentials
                     check_credentials()
                 case _:
                     logger.warning(f"No credential check implemented for provider: {provider_name}")
@@ -272,15 +288,13 @@ async def check_credentials(model_provider: str, model_name: str):
 
 def main():
     try:
-        port = int(os.getenv("API_PORT", "9999"))
-        workers = int(os.getenv("API_WORKERS", "10"))
-        logger.info(f"Starting server on port {port} with {workers} workers")
+        port = int(os.getenv("API_PORT", "9999"))        
+        logger.info(f"Starting server on port {port}")
         uvicorn.run(
-            "llm_serv.server:app",  # Import string instead of app object
+            "llm_serv.server:app",
             host="0.0.0.0", 
             port=port, 
             log_level="info",
-            workers=workers,
             loop="auto"
         )
     except ValueError as e:
