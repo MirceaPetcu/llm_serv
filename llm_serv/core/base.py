@@ -19,15 +19,34 @@ class LLMProvider(abc.ABC):
     def __init__(self, model: Model):
         self.model = model
 
+    async def start(self):
+        """
+        Initialize the provider's internal async client.
+        """
+        pass
+
+    async def stop(self):
+        """
+        Clean up the provider's internal async client.
+        """
+        pass
+
     @abc.abstractmethod
     async def _llm_service_call(self, request: LLMRequest) -> tuple[str, LLMTokens]:
         """
         This method calls the underlying provider directly, and handles failure cases like throttling with retries internally
-        Returns a tuple of (output_text, tokens_info)
+        Returns a tuple of (output_text, tokens_info).        
         """
         raise NotImplementedError()
 
     async def __call__(self, request: LLMRequest) -> LLMResponse:
+        """
+        This method is the main entry point for the LLMProvider.
+        It validates the request and delegates to the appropriate handler.
+        Automatically handles the provider's async client initialization.
+        """
+        await self.start()
+        
         # TODO proper validation of request        
         match request.request_type:
             case LLMRequestType.LLM:

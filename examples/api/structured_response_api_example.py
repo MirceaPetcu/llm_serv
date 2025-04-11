@@ -3,9 +3,8 @@ from typing import Optional
 import asyncio
 
 from pydantic import Field
-from llm_serv.core.base import LLMRequest, LLMResponseFormat
-from llm_serv.api import REGISTRY
-from llm_serv.api import get_provider
+from llm_serv.core.base import LLMRequest
+from llm_serv import LLMService
 from llm_serv.conversation import Conversation
 from rich import print as rprint
 
@@ -39,8 +38,8 @@ class WeatherPrognosis(StructuredResponse):
 
 
 async def main():
-    model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
-    llm_service = await get_provider(model)
+    model = LLMService.get_model("AWS/claude-3-haiku")
+    llm_service = LLMService.get_provider(model)
 
     input_text = """
     The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
@@ -62,8 +61,7 @@ async def main():
     conversation = Conversation.from_prompt(prompt)
     request = LLMRequest(
         conversation=conversation,
-        response_class=WeatherPrognosis,
-        response_format=LLMResponseFormat.XML,
+        response_model=WeatherPrognosis,        
         max_completion_tokens=4000,
     )
 

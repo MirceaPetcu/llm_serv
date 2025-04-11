@@ -6,18 +6,16 @@
 """
 
 import asyncio
-from rich import print as rprint
 
-from llm_serv.api import get_provider
+from llm_serv import LLMService
 from llm_serv.conversation import Conversation, Role
 from llm_serv.core.base import LLMRequest
-from llm_serv.api import REGISTRY
 
 
 async def main():
     # Select a model and create service
-    model = REGISTRY.get_model(provider="OPENAI", name="gpt-4o-mini")
-    llm_service = await get_provider(model)
+    model = LLMService.get_model("OPENAI/gpt-4o-mini")
+    llm_service = LLMService.get_provider(model)
 
     # Create conversation and request
     conversation = Conversation(system="Let's play a game. I say a number, then you add 1 to it. Respond only with the number.")

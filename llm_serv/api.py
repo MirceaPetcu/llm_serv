@@ -186,30 +186,15 @@ class LLMService:
         provider_name = model.provider.name.upper()
 
         match provider_name:
-            case "AWS":
-                # Check credentials
-                from llm_serv.core.providers.aws import check_credentials
-                check_credentials()
-
-                # Create LLM service
-                from llm_serv.core.providers.aws import AWSLLMProvider
+            case "AWS":                
+                from llm_serv.core.providers.aws import AWSLLMProvider                
                 return AWSLLMProvider(model)
             
-            case "AZURE":
-                # Check credentials
-                from llm_serv.core.providers.azure import check_credentials
-                check_credentials()
-
-                # Create LLM service
+            case "AZURE":                
                 from llm_serv.core.providers.azure import AzureOpenAILLMProvider
                 return AzureOpenAILLMProvider(model)
             
             case "OPENAI":
-                # Check credentials
-                from llm_serv.core.providers.oai import check_credentials
-                check_credentials()
-
-                # Create LLM service
                 from llm_serv.core.providers.oai import OpenAILLMProvider
                 return OpenAILLMProvider(model)
             

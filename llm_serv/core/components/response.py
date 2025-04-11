@@ -1,13 +1,11 @@
-from copy import deepcopy
-from typing import Annotated, Type
 import uuid
+
 from pydantic import BaseModel, ConfigDict, Field
-from llm_serv.conversation.conversation import Conversation
-from llm_serv.conversation.role import Role
-from llm_serv.core.components.request import LLMRequest
-from llm_serv.structured_response.model import StructuredResponse
-from llm_serv.core.components.tokens import LLMTokens
+
 from llm_serv.api import Model
+from llm_serv.core.components.request import LLMRequest
+from llm_serv.core.components.tokens import LLMTokens
+from llm_serv.structured_response.model import StructuredResponse
 
 
 class LLMResponse(BaseModel):    
@@ -34,12 +32,14 @@ class LLMResponse(BaseModel):
 
     def rprint(self, subtitle: str | None = None):
         try:
-            from rich.panel import Panel
+            import json
+            from enum import Enum
+
+            from rich import print as rprint
+            from llm_serv.conversation.role import Role
             from rich.console import Console
             from rich.json import JSON
-            import json
-            from rich import print as rprint
-            from enum import Enum
+            from rich.panel import Panel
 
             console = Console()
 
@@ -64,11 +64,11 @@ class LLMResponse(BaseModel):
             content_parts = []
             
             # Add system message if present
-            if self.conversation.system:
-                content_parts.append(f"[bold dark_magenta][SYSTEM][/bold dark_magenta] [dark_magenta]{self.conversation.system}[/dark_magenta]")
+            if self.request.conversation.system:
+                content_parts.append(f"[bold dark_magenta][SYSTEM][/bold dark_magenta] [dark_magenta]{self.request.conversation.system}[/dark_magenta]")
             
             # Process conversation messages
-            for message in self.conversation.messages:
+            for message in self.request.conversation.messages:
                 if message.role == Role.USER:
                     content_parts.append(f"[bold dark_blue][USER][/bold dark_blue] [dark_blue]{message.text}[/dark_blue]")
                 elif message.role == Role.ASSISTANT:
@@ -108,7 +108,7 @@ class LLMResponse(BaseModel):
             title = ""
             if self.tokens:
                 model_str = f"LLMRequest: {self.llm_model.provider.name}/{self.llm_model.name}"
-                title = f"{model_str} | Time: {self.total_time:.2f}s | Input/Output tokens: {self.tokens.input_tokens}/{self.tokens.completion_tokens} | Total tokens: {self.tokens.total_tokens}"
+                title = f"{model_str} | Time: {self.total_duration:.2f}s | Input/Output tokens: {self.tokens.input_tokens}/{self.tokens.completion_tokens} | Total tokens: {self.tokens.total_tokens}"
 
             # Print single panel with all content
             console.print(Panel(
@@ -127,12 +127,12 @@ class LLMResponse(BaseModel):
                 rprint("[yellow]Falling back to basic output:[/yellow]")
                 
                 # Print basic conversation info
-                if hasattr(self, "conversation") and self.conversation:
-                    if hasattr(self.conversation, "system") and self.conversation.system:
-                        rprint(f"[dark_magenta]System: {self.conversation.system}[/dark_magenta]")
+                if hasattr(self, "request") and self.request and hasattr(self.request, "conversation"):
+                    if hasattr(self.request.conversation, "system") and self.request.conversation.system:
+                        rprint(f"[dark_magenta]System: {self.request.conversation.system}[/dark_magenta]")
                     
-                    if hasattr(self.conversation, "messages"):
-                        for msg in self.conversation.messages:
+                    if hasattr(self.request.conversation, "messages"):
+                        for msg in self.request.conversation.messages:
                             role = getattr(msg, "role", "unknown")
                             text = getattr(msg, "text", "no text")
                             rprint(f"[blue]{role}: {text}[/blue]")

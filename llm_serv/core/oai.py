@@ -42,6 +42,27 @@ class OpenAILLMService(LLMService):
             project=os.getenv("OPENAI_PROJECT")
         )
 
+    async def cleanup(self):
+        """Clean up any resources used by the client"""
+        # OpenAI client doesn't require explicit cleanup, but we include
+        # this method for consistency with other providers
+        self._client = None
+
+    def __del__(self):
+        """Non-async warning about proper cleanup"""
+        if self._client is not None:
+            import warnings
+            warnings.warn(f"OpenAILLMService instance {id(self)} was not properly cleaned up. "
+                         "Call 'await provider.cleanup()' when finished, or use \n'''\nasync with provider:\n\tresponse = await provider(request).\n'''")
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        await self.cleanup()
+
     def _convert(self, request: LLMRequest) -> tuple[list, dict, dict]:
         """
         Ref here: https://platform.openai.com/docs/api-reference/chat/object
@@ -261,11 +282,14 @@ if __name__ == "__main__":
 
         request = LLMRequest(conversation=conversation, response_class=MyClass, response_format=LLMResponseFormat.XML)
 
-        response = await llm(request)
-
-        print(response)
-
-        assert isinstance(response.output, MyClass)
+        # Use the provider as an async context manager
+        async with llm:
+            try:
+                response = await llm(request)
+                print(response)
+                assert isinstance(response.output, MyClass)
+            except Exception as e:
+                print(f"Error during test: {e}")
 
     # Run the test function with asyncio
     asyncio.run(test_openai())

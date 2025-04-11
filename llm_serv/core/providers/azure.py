@@ -1,23 +1,17 @@
-import asyncio
 import os
-import time
 
-from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI
 from pydantic import Field
-from tenacity import retry, stop_after_attempt, wait_exponential
 
+from llm_serv.api import Model
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.image import Image
 from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
 from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
-from llm_serv.core.components.response import LLMResponse
 from llm_serv.core.components.tokens import LLMTokens
-from llm_serv.core.exceptions import (CredentialsException,
-                                      ServiceCallException,
-                                      ServiceCallThrottlingException)
-from llm_serv.api import Model
+from llm_serv.core.exceptions import CredentialsException, ServiceCallException
 from llm_serv.structured_response.model import StructuredResponse
 
 
@@ -35,90 +29,42 @@ def check_credentials() -> None:
         )
 
 
-class AzureOpenAILLMService(LLMProvider):
+class AzureOpenAILLMProvider(LLMProvider):
     def __init__(self, model: Model):
         super().__init__(model)        
 
-        self._client = AzureOpenAI(
+        self._client = AsyncAzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_OPEN_AI_API_VERSION"),
             azure_endpoint=f"https://{os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')}.openai.azure.com",
         )
 
-    def _convert(self, request: LLMRequest) -> tuple[list, dict, dict]:
+    async def cleanup(self):
+        """Clean up any resources used by the client"""
+        # Azure OpenAI client doesn't require explicit cleanup, but we include
+        # this method for consistency with other providers
+        self._client = None
+
+    def __del__(self):
+        """Non-async warning about proper cleanup"""
+        if self._client is not None:
+            import warnings
+            warnings.warn(f"AzureOpenAILLMService instance {id(self)} was not properly cleaned up. "
+                         "Call 'await provider.cleanup()' when finished, or use \n'''\nasync with provider:\n\tresponse = await provider(request).\n'''")
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        await self.cleanup()
+
+    def _convert(self, request: LLMRequest) -> dict:
         """
         Ref here: https://platform.openai.com/docs/api-reference/chat/object
         https://platform.openai.com/docs/guides/vision#multiple-image-inputs
-        returns (messages, system, config)
-
-        Example how to send multiple images as urls:
-        client = OpenAI()
-        response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-        {
-            "role": "user",
-            "content": [
-            {
-                "type": "text",
-                "text": "What are in these images? Is there any difference between them?",
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
-                },
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
-                },
-            },
-            ],
-        }
-        ],
-        max_tokens=300,
-        )
-
-        and example how to send an image as base64:
-
-        import base64
-        from openai import OpenAI
-
-        client = OpenAI()
-
-        # Function to encode the image
-        def encode_image(image_path):
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode('utf-8')
-
-        # Path to your image
-        image_path = "path_to_your_image.jpg"
-
-        # Getting the base64 string
-        base64_image = encode_image(image_path)
-
-        response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-            "role": "user",
-            "content": [
-                {
-                "type": "text",
-                "text": "What is in this image?",
-                },
-                {
-                "type": "image_url",
-                "image_url": {
-                    "url":  f"data:image/jpeg;base64,{base64_image}"
-                },
-                },
-            ],
-            }
-        ],
-        )
+        returns processed request data as a dictionary
         """
         messages = []
 
@@ -154,57 +100,27 @@ class AzureOpenAILLMService(LLMProvider):
             "max_tokens": request.max_completion_tokens,
             "temperature": request.temperature,
             "top_p": request.top_p,
-            "response_format": (
-                {"type": "json_object"} if request.response_format == LLMResponseFormat.JSON else {"type": "text"}
-            ),
+            "response_format": ({"type": "text"})
         }
 
-        return messages, None, config
+        return {
+            "messages": messages,            
+            "config": config
+        }
 
-    # Tenacity doesn't work well with async functions, so we implement our own retry
-    @staticmethod
-    async def async_retry(func, *args, **kwargs):
-        max_attempts = 5
-        attempt = 0
-        last_exception = None
-        start_time = time.time()
-        
-        while attempt < max_attempts:
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                attempt += 1
-                last_exception = e
-                
-                # Handle throttling specifically
-                if hasattr(e, "status_code") and e.status_code == 429:
-                    if attempt >= max_attempts:
-                        elapsed = time.time() - start_time
-                        raise ServiceCallThrottlingException(
-                            f"Azure service is throttling requests after {attempt} attempts "
-                            f"over {elapsed:.1f} seconds"
-                        ) from e
-                
-                # Exponential backoff
-                wait_time = min(60, 3 * (2 ** (attempt - 1)))
-                await asyncio.sleep(wait_time)
-        
-        # If we got here, we exhausted our retries
-        raise ServiceCallException(f"Service call failed after {max_attempts} attempts: {str(last_exception)}")
+    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, LLMTokens]:
+        """
+        Make a call to Azure OpenAI with proper error handling.
+        Returns a tuple of (output_text, tokens_info)
+        """
+        try:
+            # Convert the request to Azure OpenAI format
+            processed = self._convert(request)
+            messages = processed["messages"]
+            config = processed["config"]
 
-    async def _service_call(
-        self,
-        messages: list[dict],
-        system: dict | None,
-        config: dict,
-    ) -> tuple[str | None, LLMTokens, Exception | None]:
-        output = None
-        tokens = LLMTokens()
-        exception = None
-
-        async def _make_api_call():
-            # OpenAI's client supports async
-            response = await self._client.chat.completions.create(
+            # Make the API call - Azure's client supports async
+            api_response = await self._client.chat.completions.create(
                 model=self.model.internal_model_id,
                 messages=messages,
                 max_tokens=config["max_tokens"],
@@ -212,10 +128,6 @@ class AzureOpenAILLMService(LLMProvider):
                 top_p=config["top_p"],
                 response_format=config["response_format"],
             )
-            return response
-        
-        try:
-            api_response = await self.async_retry(_make_api_call)
             
             output = api_response.choices[0].message.content
             tokens = LLMTokens(
@@ -224,6 +136,8 @@ class AzureOpenAILLMService(LLMProvider):
                 total_tokens=api_response.usage.total_tokens,
             )
 
+            return output, tokens
+
         except Exception as e:
             if hasattr(e, "status_code"):
                 if e.status_code == 400:
@@ -231,22 +145,19 @@ class AzureOpenAILLMService(LLMProvider):
                 # Other error checks can be added here if needed
             raise ServiceCallException(f"Azure service error: {str(e)}")
 
-        return output, tokens, exception
-
 
 if __name__ == "__main__":
     import asyncio
 
     from pydantic import Field
 
-    from llm_serv.api import get_provider
+    from llm_serv import LLMService
     from llm_serv.conversation.role import Role
-    from llm_serv.api import REGISTRY
     from llm_serv.structured_response.model import StructuredResponse
 
     async def test_azure():
-        model = REGISTRY.get_model(provider="AZURE", name="gpt-4o-mini")
-        llm = await get_provider(model)
+        model: Model = LLMService.get_model("AZURE/gpt-4o-mini")
+        llm = AzureOpenAILLMService(model)
 
         class MyClass(StructuredResponse):
             example_string: str = Field(
@@ -259,18 +170,19 @@ if __name__ == "__main__":
                 default=0, ge=0.0, le=10.0, description="A float field with a value exactly half of the integer value"
             )
 
-        my_class = MyClass()
-
         conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
         conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
 
-        request = LLMRequest(conversation=conversation, response_class=MyClass, response_format=LLMResponseFormat.XML)
+        request = LLMRequest(conversation=conversation, response_model=MyClass)
 
-        response = await llm(request)
-
-        print(response)
-
-        assert isinstance(response.output, MyClass)
+        # Use the provider as an async context manager
+        async with llm:
+            try:
+                response = await llm(request)
+                print(response)
+                assert isinstance(response.output, MyClass)
+            except Exception as e:
+                print(f"Error during test: {e}")
 
     # Run the test function with asyncio
     asyncio.run(test_azure())

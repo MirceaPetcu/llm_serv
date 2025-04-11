@@ -1,67 +1,73 @@
+import asyncio
 import os
 import time
-import asyncio
 
 import aioboto3
 from pydantic import Field
 from rich import print
 
+from llm_serv.api import Model
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.role import Role
-from llm_serv.core.exceptions import CredentialsException, InternalConversionException, ServiceCallException, ServiceCallThrottlingException
 from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
 from llm_serv.core.components.response import LLMResponse
 from llm_serv.core.components.tokens import LLMTokens
-
-from llm_serv.api import Model
+from llm_serv.core.exceptions import (CredentialsException,
+                                      InternalConversionException,
+                                      ServiceCallException,
+                                      ServiceCallThrottlingException)
 from llm_serv.structured_response.model import StructuredResponse
 
 
-def check_credentials() -> None:
-    required_variables = ["AWS_DEFAULT_REGION", "AWS_SECRET_ACCESS_KEY", "AWS_ACCESS_KEY_ID"]
-    
-    missing_vars = []
-    for var in required_variables:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        raise CredentialsException(
-            f"Missing required environment variables for AWS: {', '.join(missing_vars)}"
-        )
-
-
 class AWSLLMProvider(LLMProvider):
+    @staticmethod
+    def check_credentials() -> None:
+        required_variables = ["AWS_DEFAULT_REGION", "AWS_SECRET_ACCESS_KEY", "AWS_ACCESS_KEY_ID"]
+        
+        missing_vars = []
+        for var in required_variables:
+            if not os.getenv(var):
+                missing_vars.append(var)
+        
+        if missing_vars:
+            raise CredentialsException(
+                f"Missing required environment variables for AWS: {', '.join(missing_vars)}"
+            )
+
     def __init__(self, model: Model):
         super().__init__(model)
+
+        AWSLLMProvider.check_credentials()
 
         self._context_window = model.max_tokens
         self._model_max_tokens = model.max_output_tokens
 
         from botocore.config import Config
         self._config = Config(retries={"max_attempts": 5, "mode": "adaptive"})
-        self._session = None
+        
+        self._session = aioboto3.Session(region_name=os.getenv("AWS_DEFAULT_REGION"))
         self._client = None
-
-    async def _get_client(self):
-        """Get or create an async bedrock-runtime client"""
+        self._client_cm = None
+    
+    async def start(self):
+        """
+        Initialize the boto3 client using the proper async context manager approach.
+        """
         if self._client is None:
-            self._session = aioboto3.Session(region_name=os.getenv("AWS_DEFAULT_REGION"))
-            self._client = await self._session.client(
+            self._client_cm = self._session.client(
                 service_name="bedrock-runtime",
                 aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
                 aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
                 config=self._config,
-            ).__aenter__()
-        return self._client
-
-    async def __del__(self):
-        """Clean up the client session when the provider is destroyed"""
-        if self._client is not None:
-            await self._client.__aexit__(None, None, None)
+            )
+            self._client = await self._client_cm.__aenter__()
+            
+    async def stop(self):
+        if self._client and self._client_cm:
+            await self._client_cm.__aexit__(None, None, None)
             self._client = None
-            self._session = None
+            self._client_cm = None
 
     async def _convert(self, request: LLMRequest) -> dict:
         """
@@ -201,23 +207,14 @@ class AWSLLMProvider(LLMProvider):
         except Exception as e:
             raise InternalConversionException(f"Failed to convert request: {str(e)}") from e
 
-        client = await self._get_client()
-
-        try:
-            # Now we can use async calls directly
-            if system:
-                api_response = await client.converse(
-                    modelId=self.model.internal_model_id,
-                    messages=messages,
-                    system=system,
-                    inferenceConfig=config,
-                )
-            else:
-                api_response = await client.converse(
-                    modelId=self.model.internal_model_id,
-                    messages=messages,
-                    inferenceConfig=config,
-                )
+        try:            
+            system = system if system else []
+            api_response = await self._client.converse(
+                modelId=self.model.internal_model_id,
+                messages=messages,
+                system=system,
+                inferenceConfig=config,
+            )
 
             output = api_response["output"]["message"]["content"][0]["text"]
             tokens = LLMTokens(
@@ -257,16 +254,18 @@ class AWSLLMProvider(LLMProvider):
 
 
 if __name__ == "__main__":
-    import asyncio    
-    from llm_serv.api import REGISTRY
-    from llm_serv.conversation.role import Role
-    from llm_serv.structured_response.model import StructuredResponse
+    import asyncio
+
     from pydantic import Field
 
-    async def test_aws():
-        model = REGISTRY.get_model(provider="AWS", name="claude-3-haiku")
-        llm = AWSLLMProvider(model)
+    from llm_serv import LLMService
+    from llm_serv.conversation.role import Role
+    from llm_serv.structured_response.model import StructuredResponse
 
+    async def test_aws():
+        model = LLMService.get_model("AWS/claude-3-haiku")
+        llm = AWSLLMProvider(model)
+        
         class MyClass(StructuredResponse):
             example_string: str = Field(
                 default="", description="A string field that should be filled with a random person name in Elven language"
@@ -278,18 +277,17 @@ if __name__ == "__main__":
                 default=0, ge=0.0, le=10.0, description="A float field with a value exactly half of the integer value"
             )
 
-        my_class = MyClass()
-
         conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
         conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
 
         request = LLMRequest(conversation=conversation, response_model=MyClass)
-
+            
         response = await llm(request)
-
+        
         print(response)
-
         assert isinstance(response.output, MyClass)
+
+        await llm.stop()
 
     # Run the test function with asyncio
     asyncio.run(test_aws())
