@@ -124,7 +124,7 @@ class LLMServiceClient:
                 
             models_data = response.json()
             models = [Model(**model) for model in models_data]
-            model_ids = [f"{model.provider}/{model.name}" for model in models]
+            model_ids = [model.id for model in models]
             self.logger.info(f"Successfully listed {len(model_ids)} models.")
             return sorted(model_ids)
         
@@ -247,8 +247,7 @@ class LLMServiceClient:
             self.logger.info(f"Chat request successful for model {self.model_id}")
 
             # Manually convert to StructuredResponse if needed
-            # Ensure LLMResponseFormat is imported and available
-            if request.response_model is not str:
+            if request.response_model is not None and request.response_model is not str:
                 try:
                     # Assuming response_class has a 'from_text' class method
                     llm_response.output = request.response_model.from_text(llm_response.output)

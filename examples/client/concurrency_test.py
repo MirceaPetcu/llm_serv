@@ -18,7 +18,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-from llm_serv.client_old import LLMServiceClient
+from llm_serv.client import LLMServiceClient
 from llm_serv.conversation import Conversation
 from llm_serv.core.exceptions import ServiceCallException, TimeoutException
 from llm_serv.core.base import LLMRequest, LLMResponse
@@ -89,7 +89,7 @@ async def main():
     for i in range(NUM_CONCURRENT_QUERIES):
         client = LLMServiceClient(host="localhost", port=9999, timeout=TIMEOUT)
         #client.set_model(provider="OPENAI", name="gpt-4o-mini")
-        client.set_model(provider="AWS", name="claude-3-haiku")
+        client.set_model("AWS/claude-3-haiku")
         query_tasks.append(run_query(client, i+1, TIMEOUT))
     
     # Run all queries concurrently with a progress indicator

@@ -4,6 +4,7 @@ import time
 from functools import partial
 from typing import Any, Callable, Coroutine
 
+from llm_serv.logger import logger
 from llm_serv.core.components.request import LLMRequest
 from llm_serv.core.components.response import LLMResponse
 from llm_serv.core.components.tokens import LLMTokens
@@ -14,10 +15,15 @@ from llm_serv.core.exceptions import (InternalConversionException,
                                       StructuredResponseException)
 from llm_serv.api import Model
 
+# Create a module-specific logger
+module_logger = logger.getChild("core.base")
+
 
 class LLMProvider(abc.ABC):
     def __init__(self, model: Model):
         self.model = model
+        self.logger = module_logger
+        self.logger.info(f"Initializing LLM provider for model: {model.name}")
 
     async def start(self):
         """
@@ -46,7 +52,7 @@ class LLMProvider(abc.ABC):
         Automatically handles the provider's async client initialization.
         """
         await self.start()
-        
+
         # TODO proper validation of request        
         match request.request_type:
             case LLMRequestType.LLM:
@@ -70,16 +76,20 @@ class LLMProvider(abc.ABC):
             try:
                 return await coro_func()
             except ServiceCallThrottlingException as e:
+                # Use the module-specific logger here
+                self.logger.debug(f"Service throttled after {retries} retries over {time.time() - first_attempt_time:.2f} seconds.")
                 last_exception = e
                 retries += 1
                 if retries > max_retries:
                     total_retry_duration = time.time() - first_attempt_time
+                    self.logger.debug(f"Maximum retries ({max_retries}) reached after {total_retry_duration:.2f} seconds")
                     # Raise the specific throttling exception indicating exhaustion of retries
                     raise ServiceCallThrottlingException(
                         f"Service throttled after {max_retries} retries over {total_retry_duration:.2f} seconds."
                     ) from e
                 # Calculate delay using exponential backoff (1, 2, 4, 8, ...)
                 delay = 2 ** (retries - 1)
+                self.logger.debug(f"Retrying after {delay}s delay (attempt {retries+1}/{max_retries+1})")
                 await asyncio.sleep(delay)
             # Any other exception will propagate immediately and exit the loop
 

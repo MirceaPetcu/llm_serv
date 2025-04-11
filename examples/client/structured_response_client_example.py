@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import Field
 from rich import print as rprint
 
-from llm_serv import LLMServiceClient, Conversation, LLMRequest, LLMResponseFormat
+from llm_serv import LLMServiceClient, Conversation, LLMRequest
 from llm_serv.structured_response.model import StructuredResponse
 
 
@@ -41,7 +41,7 @@ async def main():
     client = LLMServiceClient(host="localhost", port=9999, timeout=20.0)
 
     # Set the model to use
-    client.set_model(provider="AWS", name="claude-3-haiku")
+    client.set_model("AWS/claude-3-haiku")
 
     prompt = f"""
     You are a weather expert. You are given a weather forecast for a specific location.
@@ -58,8 +58,7 @@ async def main():
     conversation = Conversation.from_prompt(prompt)
     request = LLMRequest(
         conversation=conversation,
-        response_class=WeatherPrognosis,
-        response_format=LLMResponseFormat.XML,
+        response_model=WeatherPrognosis,
         max_completion_tokens=4000,
     )
 

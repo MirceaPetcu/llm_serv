@@ -23,23 +23,28 @@ from llm_serv.core.exceptions import (CredentialsException,
 from llm_serv.structured_response.model import StructuredResponse
 
 
-def check_credentials() -> None:
-    required_variables = ["OPENAI_API_KEY", "OPENAI_ORGANIZATION", "OPENAI_PROJECT"]
-        
-    missing_vars = []
-    for var in required_variables:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        raise CredentialsException(
-            f"Missing required environment variables for OpenAI: {', '.join(missing_vars)}"
-        )
+
 
 class OpenAILLMProvider(LLMProvider):
+    @staticmethod
+    def check_credentials() -> None:
+        required_variables = ["OPENAI_API_KEY", "OPENAI_ORGANIZATION", "OPENAI_PROJECT"]
+            
+        missing_vars = []
+        for var in required_variables:
+            if not os.getenv(var):
+                missing_vars.append(var)
+        
+        if missing_vars:
+            raise CredentialsException(
+                f"Missing required environment variables for OpenAI: {', '.join(missing_vars)}"
+            )
+
     def __init__(self, model: Model):
         super().__init__(model)        
         
+        OpenAILLMProvider.check_credentials()
+
         # The OpenAI client is already async-compatible
         self._client = AsyncOpenAI(
             organization=os.getenv("OPENAI_ORGANIZATION"),
@@ -246,6 +251,6 @@ if __name__ == "__main__":
         assert isinstance(response.output, MyClass)
     
         await llm.stop()    
-        
+
     # Run the test function with asyncio
     asyncio.run(test_openai())

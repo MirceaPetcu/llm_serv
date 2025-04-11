@@ -61,16 +61,10 @@ async def main():
 
     # 5. Set the model to use
     # Updated to use the new API with model_id in format "provider/name"
-    client.set_model("AWS/claude-3-haiku")
-    # Alternative model:
-    # client.set_model("OPENAI/gpt-4o-mini")
-
-    # 6. Model test
-    # Since model_health_check isn't defined in client.py, we'll skip this
-    # and just print a message
+    client.set_model("AWS/claude-3-haiku")    
     print("Model set to:", client.model_id)
 
-    # 7. Create and send a chat request
+    # 6. Create and send a chat request
     conversation = Conversation.from_prompt("What's 1+1?")
     request = LLMRequest(conversation=conversation)
     response = await client.chat(request)

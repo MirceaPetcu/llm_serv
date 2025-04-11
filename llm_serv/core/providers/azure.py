@@ -15,50 +15,34 @@ from llm_serv.core.exceptions import CredentialsException, ServiceCallException
 from llm_serv.structured_response.model import StructuredResponse
 
 
-def check_credentials() -> None:
-    required_variables = ["AZURE_OPENAI_API_KEY", "AZURE_OPEN_AI_API_VERSION", "AZURE_OPENAI_DEPLOYMENT_NAME"]
-    
-    missing_vars = []
-    for var in required_variables:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        raise CredentialsException(
-            f"Missing required environment variables for Azure: {', '.join(missing_vars)}"
-        )
+
 
 
 class AzureOpenAILLMProvider(LLMProvider):
+    @staticmethod
+    def check_credentials() -> None:
+        required_variables = ["AZURE_OPENAI_API_KEY", "AZURE_OPEN_AI_API_VERSION", "AZURE_OPENAI_DEPLOYMENT_NAME"]
+        
+        missing_vars = []
+        for var in required_variables:
+            if not os.getenv(var):
+                missing_vars.append(var)
+        
+        if missing_vars:
+            raise CredentialsException(
+                f"Missing required environment variables for Azure: {', '.join(missing_vars)}"
+            )
+
     def __init__(self, model: Model):
-        super().__init__(model)        
+        super().__init__(model)     
+
+        AzureOpenAILLMProvider.check_credentials()
 
         self._client = AsyncAzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_OPEN_AI_API_VERSION"),
             azure_endpoint=f"https://{os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')}.openai.azure.com",
         )
-
-    async def cleanup(self):
-        """Clean up any resources used by the client"""
-        # Azure OpenAI client doesn't require explicit cleanup, but we include
-        # this method for consistency with other providers
-        self._client = None
-
-    def __del__(self):
-        """Non-async warning about proper cleanup"""
-        if self._client is not None:
-            import warnings
-            warnings.warn(f"AzureOpenAILLMService instance {id(self)} was not properly cleaned up. "
-                         "Call 'await provider.cleanup()' when finished, or use \n'''\nasync with provider:\n\tresponse = await provider(request).\n'''")
-
-    async def __aenter__(self):
-        """Async context manager entry"""
-        return self
-        
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit"""
-        await self.cleanup()
 
     def _convert(self, request: LLMRequest) -> dict:
         """

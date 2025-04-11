@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 
@@ -17,21 +16,10 @@ from llm_serv.core.exceptions import (
     CredentialsException,
 )
 from llm_serv.core.base import LLMProvider, LLMRequest, LLMResponse
-from llm_serv.api import REGISTRY, Model, ModelProvider
+from llm_serv.api import Model, ModelProvider
+from llm_serv.logger import logger
 
-# Use uvicorn's logger instead of creating your own
-logger = logging.getLogger("uvicorn")
-
-def create_app() -> FastAPI:
-    # Initialize the registry first
-    try:
-        logger.info("Initializing LLM Registry...")
-        _ = REGISTRY.models
-        logger.info(f"Registry initialized with {len(REGISTRY.models)} models")
-    except Exception as e:
-        logger.error(f"Failed to initialize registry: {str(e)}")
-        raise
-    
+def create_app() -> FastAPI:    
     # Initialize the FastAPI app
     app = FastAPI(title="LLMService", version="1.0", docs_url="/docs", redoc_url="/redoc")
     
@@ -47,13 +35,11 @@ def create_app() -> FastAPI:
                 app.state.providers[model.provider.name][model.name] = LLMService.get_provider(model)
                 logger.info(f"Set up LLM Provider for {model.provider.name}/{model.name}")
             except CredentialsException as e:
-                logger.error(f"Failed to set up LLM Provider for {model.provider.name}/{model.name}: {str(e)}")
+                logger.warning(f"Failed to set up LLM Provider for {model.provider.name}/{model.name}: {str(e)}")
                     
     except Exception as e:
         logger.error(f"Failed to set up LLM Providers: {str(e)}")
-        raise
-
-    
+        raise    
 
     # Store startup time and initialize metrics
     app.state.start_time = time.time()
@@ -114,9 +100,7 @@ async def list_providers() -> list[ModelProvider]:
 @app.post("/chat/{model_provider}/{model_name}")
 async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLMResponse:
     try:
-        logger.warning(f"Chatting with model {model_provider}/{model_name}")
-
-        logger.info(f"Request: {request.model_dump(exclude={'conversation'})}")
+        logger.info(f"Request to {model_provider}/{model_name}: {request.model_dump(exclude={'conversation'})}")
 
         # First of all, check if the model and providers are available
         try:
@@ -290,12 +274,15 @@ def main():
     try:
         port = int(os.getenv("API_PORT", "9999"))        
         logger.info(f"Starting server on port {port}")
+        
+        # Pass the app instance directly instead of a string reference
         uvicorn.run(
-            "llm_serv.server:app",
+            app,  # Pass the app instance directly
             host="0.0.0.0", 
             port=port, 
-            log_level="info",
-            loop="auto"
+            log_level=os.getenv("LOG_LEVEL", "info").lower(),
+            loop="auto",
+            log_config=None
         )
     except ValueError as e:
         logger.error(f"Invalid port configuration: {str(e)}", exc_info=True)
