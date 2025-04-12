@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 
+from llm_serv import __version__
 from llm_serv.api import LLMService
 from llm_serv.core.exceptions import (
     InternalConversionException,
@@ -21,7 +22,7 @@ from llm_serv.logger import logger
 
 def create_app() -> FastAPI:    
     # Initialize the FastAPI app
-    app = FastAPI(title="LLMService", version="1.0", docs_url="/docs", redoc_url="/redoc")
+    app = FastAPI(title="LLMService", version=__version__, docs_url="/docs", redoc_url="/redoc")
     
     # Set up the LLM Providers
     try:
@@ -32,10 +33,9 @@ def create_app() -> FastAPI:
                 app.state.providers[model.provider.name] = {}
             assert model.name not in app.state.providers[model.provider.name], f"Model {model.name} already exists in provider {model.provider.name}!"
             try:
-                app.state.providers[model.provider.name][model.name] = LLMService.get_provider(model)
-                logger.info(f"Set up LLM Provider for {model.provider.name}/{model.name}")
+                app.state.providers[model.provider.name][model.name] = LLMService.get_provider(model)                
             except CredentialsException as e:
-                logger.warning(f"Failed to set up LLM Provider for {model.provider.name}/{model.name}: {str(e)}")
+                logger.error(f"Failed to set up LLM Provider for {model.provider.name}/{model.name}: {str(e)}")
                     
     except Exception as e:
         logger.error(f"Failed to set up LLM Providers: {str(e)}")
@@ -273,13 +273,13 @@ async def check_credentials(model_provider: str, model_name: str):
 def main():
     try:
         port = int(os.getenv("API_PORT", "9999"))        
-        logger.info(f"Starting server on port {port}")
+        logger.info(f"Starting server version {__version__} on port {port}")
         
         # Pass the app instance directly instead of a string reference
         uvicorn.run(
             app,  # Pass the app instance directly
             host="0.0.0.0", 
-            port=port, 
+            port=port,
             log_level=os.getenv("LOG_LEVEL", "info").lower(),
             loop="auto",
             log_config=None

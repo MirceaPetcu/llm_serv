@@ -23,7 +23,7 @@ class LLMProvider(abc.ABC):
     def __init__(self, model: Model):
         self.model = model
         self.logger = module_logger
-        self.logger.info(f"Initializing LLM provider for model: {model.name}")
+        self.logger.info(f"Initializing LLM provider for model: \033[94m{model.id}\033[0m [\033[93m{model.internal_model_id}\033[0m]")
 
     async def start(self):
         """

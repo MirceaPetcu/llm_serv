@@ -31,6 +31,7 @@ MODELS:
     capabilities:
       image_support: true
       document_support: true
+      structured_output: true
     config: {}
 
   AZURE/gpt-4o-mini:
@@ -40,6 +41,7 @@ MODELS:
     capabilities:
       image_support: true
       document_support: true
+      structured_output: true
     config: {}
 
   OPENAI/gpt-4o:
@@ -49,6 +51,7 @@ MODELS:
     capabilities:
       image_support: true
       document_support: true
+      structured_output: true
     config: {}
 
   OPENAI/gpt-4o-mini:
@@ -58,6 +61,7 @@ MODELS:
     capabilities:
       image_support: true
       document_support: true
+      structured_output: true
     config: {}
 
   AWS/claude-3-5-sonnet:
@@ -70,7 +74,7 @@ MODELS:
     config: {}
     
   AWS/eu-claude-3-5-sonnet:
-    internal_model_id: anthropic.claude-3-5-sonnet-20240620-v1:0
+    internal_model_id: eu.anthropic.claude-3-5-sonnet-20240620-v1:0
     max_tokens: 200000
     max_output_tokens: 4096
     capabilities:

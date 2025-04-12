@@ -12,7 +12,6 @@ class ModelProvider(BaseModel):
 class Model(BaseModel):
     id: str  # format: provider/model_name
     internal_model_id: str
-    name: str
     provider: ModelProvider    
     
     max_tokens: int
@@ -21,7 +20,15 @@ class Model(BaseModel):
     config: dict = {}
 
     # TODO implement __str__ and __repr__
+
+    @property
+    def name(self) -> str:
+        return self.id.split("/")[1]
     
+    @property
+    def provider_name(self) -> str:
+        return self.id.split("/")[0]
+
     @property
     def image_support(self) -> bool:
         return self.capabilities.get("image_support", False)
@@ -29,6 +36,10 @@ class Model(BaseModel):
     @property
     def document_support(self) -> bool:
         return self.capabilities.get("document_support", False)
+
+    @property
+    def structured_output(self) -> bool:
+        return self.capabilities.get("structured_output", False)
 
 
 class LLMService:
@@ -85,7 +96,6 @@ class LLMService:
             # Create the model
             model = Model(
                 provider=provider,
-                name=model_name,
                 id=model_id,
                 internal_model_id=model_data["internal_model_id"],
                 max_tokens=model_data["max_tokens"],
@@ -112,6 +122,8 @@ class LLMService:
             ValueError: If no model is found
         """
         service = LLMService()
+
+        LLMService._check_model_id(model_id)
         
         if not service.models:
             service._initialize()
@@ -130,15 +142,50 @@ class LLMService:
         raise ValueError(f"No model found for ID '{model_id}'")
 
     @staticmethod
-    def _check_model_id(model_id: str) -> bool:
+    def add_model(model: Model):
         """
-        Check if the model ID is valid.
+        Add a model to the service.
+        """
+        service = LLMService()
+
+        if not LLMService._initialized:
+            service._initialize()
+
+        LLMService._check_model_id(model.id)
+
+        # Check if the model already exists, if so, overwrite it
+        for i, m in enumerate(service.models):
+            if m.id == model.id:
+                service.models[i] = model
+                return
+        
+        # If the model doesn't exist, add it            
+        service.models.append(model)
+
+        # Check if the provider already exists, if so, overwrite it
+        for i, p in enumerate(service.providers):
+            if p.name == model.provider.name:
+                service.providers[i] = model.provider
+                return
+
+        # If the provider doesn't exist, add it
+        service.providers.append(model.provider)
+
+    @staticmethod
+    def _check_model_id(model_id: str) -> None:
+        """
+        Check if the model ID is valid. Raises a ValueError if it's not.
         """
         try:
-            LLMService.get_model(model_id)
-            return True
+            model_id = model_id.strip()
+            parts = model_id.split("/")
+            if len(parts) != 2:
+                raise ValueError(f"Invalid model ID: '{model_id}'")
+            provider_name, model_name = parts
+            if len(provider_name) == 0 or len(model_name) == 0:
+                raise ValueError(f"Invalid model ID: '{model_id}'")
         except ValueError:
-            return False
+            raise ValueError(f"Invalid model ID: '{model_id}'")
 
     @staticmethod
     def list_providers() -> list[ModelProvider]:
@@ -197,6 +244,10 @@ class LLMService:
             case "OPENAI":
                 from llm_serv.core.providers.oai import OpenAILLMProvider
                 return OpenAILLMProvider(model)
+            
+            case "MOCK":
+                from llm_serv.core.providers.mock import MockLLMProvider
+                return MockLLMProvider(model)
             
             case _:
                 raise ValueError(f"Unsupported provider: {provider_name}.")

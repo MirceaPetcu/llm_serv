@@ -14,10 +14,6 @@ from llm_serv.core.components.tokens import LLMTokens
 from llm_serv.core.exceptions import CredentialsException, ServiceCallException
 from llm_serv.structured_response.model import StructuredResponse
 
-
-
-
-
 class AzureOpenAILLMProvider(LLMProvider):
     @staticmethod
     def check_credentials() -> None:
@@ -141,7 +137,7 @@ if __name__ == "__main__":
 
     async def test_azure():
         model: Model = LLMService.get_model("AZURE/gpt-4o-mini")
-        llm = AzureOpenAILLMService(model)
+        llm = AzureOpenAILLMProvider(model)
 
         class MyClass(StructuredResponse):
             example_string: str = Field(
@@ -159,14 +155,12 @@ if __name__ == "__main__":
 
         request = LLMRequest(conversation=conversation, response_model=MyClass)
 
-        # Use the provider as an async context manager
-        async with llm:
-            try:
-                response = await llm(request)
-                print(response)
-                assert isinstance(response.output, MyClass)
-            except Exception as e:
-                print(f"Error during test: {e}")
+        response = await llm(request)
+        
+        print(response)
+        assert isinstance(response.output, MyClass)
+    
+        await llm.stop()
 
     # Run the test function with asyncio
     asyncio.run(test_azure())
