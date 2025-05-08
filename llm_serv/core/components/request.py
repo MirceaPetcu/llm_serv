@@ -13,7 +13,7 @@ class LLMRequest(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     request_type: LLMRequestType = LLMRequestType.LLM
     conversation: Conversation    
-    response_model: Annotated[Type[StructuredResponse | None], PlainSerializer(lambda obj: obj.__name__)] = Field(
+    response_model: Annotated[Type[StructuredResponse] | None, PlainSerializer(lambda obj: obj.__name__)] = Field(
         default=None, exclude=True
     )
     force_native_structured_response: bool = False

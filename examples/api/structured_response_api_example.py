@@ -62,7 +62,7 @@ async def main():
     request = LLMRequest(
         conversation=conversation,
         response_model=WeatherPrognosis,        
-        max_completion_tokens=4000,
+        max_completion_tokens=4000
     )
 
     # Use await for async service call
@@ -81,6 +81,8 @@ async def main():
 
     print("\nJSON print:")
     print(f"{response.output}")
+
+    llm_service.stop()
 
 
 if __name__ == "__main__":
