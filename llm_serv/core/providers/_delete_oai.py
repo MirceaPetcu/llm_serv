@@ -15,7 +15,7 @@ from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
 from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
-from llm_serv.core.components.tokens import LLMTokens
+from llm_serv.core.components.tokens import ModelTokens, TokenTracker
 from llm_serv.core.exceptions import (CredentialsException,
                                       InternalConversionException,
                                       ServiceCallException,
@@ -178,7 +178,7 @@ class OpenAILLMProvider(LLMProvider):
     async def _llm_service_call(
         self,
         request: LLMRequest,
-    ) -> tuple[str, LLMTokens]:
+    ) -> tuple[str, ModelTokens]:
         # prepare request
         try:
             processed = await self._convert(request)
@@ -199,10 +199,9 @@ class OpenAILLMProvider(LLMProvider):
             )
             
             output = api_response.choices[0].message.content
-            tokens = LLMTokens(
+            tokens = ModelTokens(
                 input_tokens=api_response.usage.prompt_tokens,
-                completion_tokens=api_response.usage.completion_tokens,
-                total_tokens=api_response.usage.total_tokens,
+                completion_tokens=api_response.usage.completion_tokens                
             )
 
         except Exception as e:

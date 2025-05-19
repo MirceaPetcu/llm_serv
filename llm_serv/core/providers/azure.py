@@ -10,7 +10,7 @@ from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
 from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
-from llm_serv.core.components.tokens import LLMTokens
+from llm_serv.core.components.tokens import ModelTokens
 from llm_serv.core.exceptions import CredentialsException, ServiceCallException
 from llm_serv.structured_response.model import StructuredResponse
 
@@ -88,7 +88,7 @@ class AzureOpenAILLMProvider(LLMProvider):
             "config": config
         }
 
-    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, LLMTokens]:
+    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, ModelTokens]:
         """
         Make a call to Azure OpenAI with proper error handling.
         Returns a tuple of (output_text, tokens_info)
@@ -110,10 +110,9 @@ class AzureOpenAILLMProvider(LLMProvider):
             )
             
             output = api_response.choices[0].message.content
-            tokens = LLMTokens(
+            tokens = ModelTokens(
                 input_tokens=api_response.usage.prompt_tokens,
-                completion_tokens=api_response.usage.completion_tokens,
-                total_tokens=api_response.usage.total_tokens,
+                completion_tokens=api_response.usage.completion_tokens
             )
 
             return output, tokens
