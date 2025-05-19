@@ -61,6 +61,24 @@ class TokenTracker(BaseModel):
     """    
     stats: dict[str, ModelTokens] = {}
 
+    @property
+    def input_tokens(self) -> int:
+        if len(self.stats) == 0:
+            return 0
+        return sum(model_tokens.input_tokens for model_tokens in self.stats.values())
+
+    @property
+    def completion_tokens(self) -> int:
+        if len(self.stats) == 0:
+            return 0
+        return sum(model_tokens.completion_tokens for model_tokens in self.stats.values())
+
+    @property
+    def total_tokens(self) -> int:
+        if len(self.stats) == 0:
+            return 0
+        return sum(model_tokens.total_tokens for model_tokens in self.stats.values())
+
     def __add__(self, other: "TokenTracker") -> "TokenTracker":
         for model_name, tokens in other.stats.items():
             if model_name not in self.stats:
