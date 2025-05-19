@@ -17,7 +17,7 @@ class LLMRequest(BaseModel):
         default=None, exclude=True
     )
     force_native_structured_response: bool = False
-    max_completion_tokens: int = 4096
+    max_completion_tokens: int | None = None
     temperature: float = 0.5
     max_retries: int = 5
     top_p: float = 0.95

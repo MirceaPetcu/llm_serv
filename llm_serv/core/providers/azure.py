@@ -77,7 +77,7 @@ class AzureOpenAILLMProvider(LLMProvider):
             messages.append({"role": message.role.value, "content": content})
 
         config = {
-            "max_tokens": request.max_completion_tokens,
+            "max_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,
             "temperature": request.temperature,
             "top_p": request.top_p,
             "response_format": ({"type": "text"})

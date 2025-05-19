@@ -180,7 +180,7 @@ class AWSLLMProvider(LLMProvider):
             )
 
             config = {
-                "maxTokens": request.max_completion_tokens,
+                "maxTokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,
                 "temperature": request.temperature,
                 "topP": request.top_p,
             }

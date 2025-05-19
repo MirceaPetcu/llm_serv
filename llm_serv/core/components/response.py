@@ -15,7 +15,7 @@ class LLMResponse(BaseModel):
     output: StructuredResponse | str | None = None        
     
     native_response_format_used: bool | None = None
-    tokens: TokenTracker | None = None
+    tokens: TokenTracker = Field(default_factory=TokenTracker)
     
     llm_model: Model | None = None
 
