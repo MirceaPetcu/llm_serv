@@ -284,9 +284,20 @@ def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str
         # First describe nested classes (maintains proper order)
         for field_name, field_info in object.model_fields.items():
             if field_name not in exclude_fields:
-                field_type = field_info.annotation
-                if isinstance(field_type, type) and issubclass(field_type, BaseModel):
-                    collect_nested_descriptions(field_type)
+                current_field_type = field_info.annotation
+
+                # Unwrap Optional if present
+                if get_origin(current_field_type) is Union and type(None) in get_args(current_field_type):
+                    current_field_type = next(arg for arg in get_args(current_field_type) if arg is not type(None))
+
+                # Check if the field is a list of BaseModel subclasses
+                if get_origin(current_field_type) is list:
+                    list_element_type = get_args(current_field_type)[0]
+                    if isinstance(list_element_type, type) and issubclass(list_element_type, BaseModel):
+                        collect_nested_descriptions(list_element_type)
+                # Check if the field is a direct BaseModel subclass
+                elif isinstance(current_field_type, type) and issubclass(current_field_type, BaseModel):
+                    collect_nested_descriptions(current_field_type)
 
         # Then describe root class
         all_descriptions.append(f"\nHere is the description for each field for the <structured_response> main element:")
