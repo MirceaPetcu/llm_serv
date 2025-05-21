@@ -219,7 +219,7 @@ class AWSLLMProvider(LLMProvider):
             output = api_response["output"]["message"]["content"][0]["text"]
             tokens = ModelTokens(
                 input_tokens=api_response["usage"]["inputTokens"],
-                completion_tokens=api_response["usage"]["outputTokens"]
+                output_tokens=api_response["usage"]["outputTokens"]
             )
 
             return output, tokens

@@ -201,7 +201,7 @@ class OpenAILLMProvider(LLMProvider):
             output = api_response.choices[0].message.content
             tokens = ModelTokens(
                 input_tokens=api_response.usage.prompt_tokens,
-                completion_tokens=api_response.usage.completion_tokens                
+                output_tokens=api_response.usage.completion_tokens                
             )
 
         except Exception as e:
