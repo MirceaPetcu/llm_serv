@@ -164,7 +164,7 @@ class OpenAILLMProvider(LLMProvider):
         """
         
         config = {
-            "max_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,
+            "max_completion_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,
             "temperature": request.temperature,
             "top_p": request.top_p,
             "response_format": ({"type": "text"})
@@ -192,7 +192,7 @@ class OpenAILLMProvider(LLMProvider):
             api_response = await self._client.chat.completions.create(
                 model=self.model.internal_model_id,
                 messages=messages,
-                max_tokens=config["max_tokens"],
+                max_completion_tokens=config["max_completion_tokens"],
                 temperature=config["temperature"],
                 top_p=config["top_p"],
                 response_format=config["response_format"],
