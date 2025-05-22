@@ -175,6 +175,7 @@ class OpenAILLMProvider(LLMProvider):
             "config": config
         }
     
+    # TODO https://platform.openai.com/docs/guides/responses-vs-chat-completions?api-mode=responses switch to responses api
     async def _llm_service_call(
         self,
         request: LLMRequest,
@@ -189,19 +190,26 @@ class OpenAILLMProvider(LLMProvider):
 
         # call the LLM provider, no need to retry, it is handled in the base class
         try:            
-            api_response = await self._client.chat.completions.create(
-                model=self.model.internal_model_id,
-                messages=messages,
-                max_completion_tokens=config["max_completion_tokens"],
-                temperature=config["temperature"],
-                top_p=config["top_p"],
-                response_format=config["response_format"],
-            )
+            # Prepare parameters for the API call, excluding top_p initially.
+            completion_params = {
+                "model": self.model.internal_model_id,
+                "messages": messages,
+                "max_completion_tokens": config["max_completion_tokens"],
+                "temperature": config["temperature"],
+                "response_format": config["response_format"],
+            }
+            if config["top_p"] is not None:
+                completion_params["top_p"] = config["top_p"]
+            
+            api_response = await self._client.chat.completions.create(**completion_params)
             
             output = api_response.choices[0].message.content
             tokens = ModelTokens(
                 input_tokens=api_response.usage.prompt_tokens,
-                output_tokens=api_response.usage.completion_tokens                
+                #cached_input_tokens=api_response.usage.input_tokens_details.cached_tokens,
+                output_tokens=api_response.usage.completion_tokens,
+                #reasoning_output_tokens=api_response.usage.output_tokens_details.reasoning_tokens,
+                total_tokens=api_response.usage.total_tokens,
             )
 
         except Exception as e:
@@ -225,7 +233,7 @@ if __name__ == "__main__":
     from llm_serv.structured_response.model import StructuredResponse
 
     async def test_openai():
-        model = LLMService.get_model("OPENAI/gpt-4o-mini")
+        model = LLMService.get_model("OPENAI/o4-mini")
         llm = OpenAILLMProvider(model)
 
         class MyClass(StructuredResponse):
