@@ -60,7 +60,7 @@ class OpenAILLMProvider(LLMProvider):
         Example how to send multiple images as urls:
         client = OpenAI()
         response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4.1-mini",
         messages=[
         {
             "role": "user",

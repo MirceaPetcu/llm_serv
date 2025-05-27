@@ -14,7 +14,7 @@ from llm_serv.core.base import LLMRequest
 
 async def main():
     # Select a model and create service
-    model = LLMService.get_model("OPENAI/gpt-4o-mini")
+    model = LLMService.get_model("OPENAI/gpt-4.1-mini")
     llm_service = LLMService.get_provider(model)
 
     # Create conversation and request
