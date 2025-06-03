@@ -20,6 +20,7 @@ requests = "^2.32.3"
 openai = "^1.81.0"
 aioboto3 = "^14.3.0"
 colorama = "^0.4.6"
+google-genai = "^1.18.0"
 
 [tool.pdm.dev-dependencies]
 test = [

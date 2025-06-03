@@ -13,15 +13,13 @@ PROVIDERS:
   OPENAI:
     name: OPENAI
     config: {}
-  MISTRAL:
-    name: MISTRAL
+  GOOGLE:
+    name: GOOGLE
     config: {}
-  ANTHROPIC:
-    name: ANTHROPIC
+  OPENROUTER:
+    name: OPENROUTER
     config: {}
-  GROK:
-    name: GROK
-    config: {}
+
 
 MODELS:
   AZURE/gpt-4o:    
@@ -117,4 +115,36 @@ MODELS:
       image_support: true
       document_support: false
     config: {}
+
+  GOOGLE/gemini-2.5-flash:
+    internal_model_id: gemini-2.5-flash-preview-05-20
+    max_tokens: 1047576
+    max_output_tokens: 65535
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+
+  OPENROUTER/deepseek-v3-free:
+    internal_model_id: deepseek/deepseek-chat-v3-0324:free
+    max_tokens: 128000
+    max_output_tokens: 32768
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+  
+  OPENROUTER/deepseek-r1-free:
+    internal_model_id: deepseek/deepseek-r1-0528:free
+    max_tokens: 163840
+    max_output_tokens: 32768
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+  
+
   
