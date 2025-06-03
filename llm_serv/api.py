@@ -262,7 +262,15 @@ class LLMService:
             case "OPENAI":
                 from llm_serv.core.providers.oai import OpenAILLMProvider
                 return OpenAILLMProvider(model)
+
+            case "GOOGLE":
+                from llm_serv.core.providers.gcp import GoogleLLMProvider
+                return GoogleLLMProvider(model)
             
+            case "OPENROUTER":
+                from llm_serv.core.providers.openrouter import OpenRouterLLMProvider
+                return OpenRouterLLMProvider(model)
+
             case "MOCK":
                 from llm_serv.core.providers.mock import MockLLMProvider
                 return MockLLMProvider(model)

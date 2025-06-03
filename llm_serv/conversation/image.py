@@ -1,11 +1,11 @@
 import base64
 import os
 from io import BytesIO
-from typing import Optional
+from typing import Optional, Any
 
 import requests
 from PIL import Image as PILImage
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 from colorama import init, Fore
 
 
@@ -21,18 +21,33 @@ class Image(BaseModel):
     exif: dict = {}
     meta: dict = {}
 
+    @field_serializer('image')
+    def serialize_image(self, image: PILImage.Image, _info) -> str:
+        """Convert PIL Image to base64 string for serialization."""
+        return self.export_as_base64(image)
+
+    @field_validator('image', mode='before')
+    @classmethod
+    def validate_image(cls, v) -> PILImage.Image:
+        """Convert base64 string or file path to PIL Image for deserialization."""
+        if isinstance(v, str):
+            # Check if it's a file path or base64
+            if os.path.exists(v):
+                return PILImage.open(v)
+            else:
+                # Assume base64
+                try:
+                    return cls.import_from_base64(v)
+                except Exception as e:
+                    raise ValueError(f"Failed to decode base64 image data: {str(e)}")
+        elif isinstance(v, PILImage.Image):
+            return v
+        else:
+            raise ValueError(f"Image field must be a PIL Image, file path, or base64 string, got {type(v)}")
+
     @property
     def format(self) -> Optional[str]:
         return self.image.format.lower() if self.image and self.image.format else None
-
-    def model_dump(self, **kwargs):
-        exclude = kwargs.pop("exclude", set())
-        if "image" not in exclude:
-            # Convert image to base64 when dumping
-            result = {"image": self.export_as_base64(self.image), **super().model_dump(exclude={"image"}, **kwargs)}
-        else:
-            result = super().model_dump(**kwargs)
-        return result
 
     @classmethod
     def model_validate(cls, obj, **kwargs):
@@ -50,7 +65,7 @@ class Image(BaseModel):
                     # Assume base64
                     try:
                         obj = obj.copy()
-                        obj["image"] = cls.import_from_base64(cls, obj["image"])
+                        obj["image"] = cls.import_from_base64(obj["image"])
                     except Exception as e:
                         raise ValueError(f"Failed to decode base64 image data: {str(e)}")
         return super().model_validate(obj, **kwargs)
@@ -91,11 +106,15 @@ class Image(BaseModel):
         response.raise_for_status()
         return response.content
 
-    def export_as_base64(self, image: PILImage.Image) -> str:
-        return base64.b64encode(self._pil_to_bytes(image)).decode()
+    @staticmethod
+    def export_as_base64(image: PILImage.Image) -> str:
+        img_byte_arr = BytesIO()
+        image.save(img_byte_arr, format=image.format or "PNG")
+        return base64.b64encode(img_byte_arr.getvalue()).decode()
 
-    def import_from_base64(self, base64_str: str) -> PILImage.Image:
-        return self.bytes_to_pil(base64.b64decode(base64_str))
+    @staticmethod
+    def import_from_base64(base64_str: str) -> PILImage.Image:
+        return PILImage.open(BytesIO(base64.b64decode(base64_str)))
 
     @classmethod
     def from_bytes(cls, bytes_data: bytes) -> "Image":
@@ -103,7 +122,7 @@ class Image(BaseModel):
             raise ValueError("Empty bytes input")
 
         img = cls.bytes_to_pil(bytes_data)
-        return cls(image=img, path="", name="", extension=img.format.lower() if img.format else None)
+        return cls(image=img, path="", name="")
 
     @classmethod
     def from_url(cls, url: str) -> "Image":
@@ -124,7 +143,6 @@ class Image(BaseModel):
                 image=img,
                 path="",
                 name=os.path.splitext(os.path.basename(url))[0],
-                extension=img.format.lower() if img.format else None,
                 exif=exif_data,
             )
         except requests.RequestException as e:
@@ -140,7 +158,7 @@ class Image(BaseModel):
 
         try:
             img = PILImage.open(path)
-            image = Image(image=img, path=path, format=img.format.lower() if img.format else None)
+            image = Image(image=img, path=path)
 
             try:
                 image.exif = dict(img._getexif() or {})

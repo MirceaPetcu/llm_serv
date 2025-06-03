@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "llm_serv"
-version = "2025.5.22"
+version = "2025.6.3"
 description = "LLM Service"
 authors = ["Stefan Dumitrescu <dumitrescu.stefan@gmail.com>"]
 readme = "README.md"

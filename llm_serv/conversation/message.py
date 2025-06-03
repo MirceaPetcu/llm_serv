@@ -9,7 +9,7 @@ from llm_serv.conversation.image import Image
 
 
 class Message(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, json_encoders={Image: lambda img: img.to_json()})
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     role: Role = Field(default=Role.USER)
     text: Optional[str] = None
@@ -34,13 +34,13 @@ class Message(BaseModel):
         # Handle Role enumeration
         data["role"] = self.role.value
 
-        # Handle images
+        # Handle images - they will automatically serialize via their model_dump method
         if self.images:
-            data["images"] = [img.model_dump() for img in self.images]
+            data["images"] = [img.model_dump(**kwargs) for img in self.images]
 
-        # Handle documents
-        if hasattr(self, "documents") and self.documents:
-            data["documents"] = [doc.to_json() for doc in self.documents]
+        # Handle documents - uncomment when Document class supports model_dump
+        # if hasattr(self, "documents") and self.documents:
+        #     data["documents"] = [doc.model_dump(**kwargs) for doc in self.documents]
 
         return data
 
@@ -51,13 +51,13 @@ class Message(BaseModel):
             if "role" in obj:
                 obj["role"] = Role(obj["role"])
 
-            # Handle images
+            # Handle images - they will automatically deserialize via their model_validate method
             if "images" in obj and obj["images"]:
-                obj["images"] = [Image.from_json(img_data) for img_data in obj["images"]]
+                obj["images"] = [Image.model_validate(img_data) for img_data in obj["images"]]
 
-            # Handle documents
-            if "documents" in obj and obj["documents"]:
-                obj["documents"] = [Document.from_json(doc_data) for doc_data in obj["documents"]]
+            # Handle documents - uncomment when Document class supports model_validate
+            # if "documents" in obj and obj["documents"]:
+            #     obj["documents"] = [Document.model_validate(doc_data) for doc_data in obj["documents"]]
 
         return super().model_validate(obj, **kwargs)
 

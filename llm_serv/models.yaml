@@ -146,5 +146,23 @@ MODELS:
       structured_output: true
     config: {}
   
+  OPENROUTER/llama-4-maverick-free:
+    internal_model_id: meta-llama/llama-4-maverick:free
+    max_tokens: 128000
+    max_output_tokens: 4028
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
 
+  GOOGLE/gemini-2.0-flash-exp:
+    internal_model_id: google/gemini-2.0-flash-exp:free
+    max_tokens: 1047576
+    max_output_tokens: 65535
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
   
