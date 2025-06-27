@@ -1,8 +1,11 @@
 from datetime import date, datetime, time
 from enum import Enum
-from typing import Dict, List, Optional, Type, Union, get_args, get_origin
+from typing import Dict, List, Optional, Type, Union, get_args, get_origin, TYPE_CHECKING
 
 from pydantic import BaseModel, create_model
+
+if TYPE_CHECKING:
+    from llm_serv.structured_response.model import StructuredResponse
 
 
 def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str] = []) -> str:
@@ -393,3 +396,125 @@ def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str
     instructions.extend(generate_field_descriptions(object=object, exclude_fields=exclude_fields))
 
     return "\n".join(instructions)
+
+
+def instance_to_xml(instance: "StructuredResponse", exclude_none: bool = False, exclude: set[str] = None, indent_level: int = 0) -> str:
+    """
+    Converts a StructuredResponse instance to XML format with actual values.
+    
+    Args:
+        instance: The StructuredResponse instance to convert
+        exclude_none: Whether to exclude fields with None values
+        exclude: Set of field names to exclude from the output
+        indent_level: Current indentation level for nested structures
+        
+    Returns:
+        XML string representation of the instance
+    """
+    if exclude is None:
+        exclude = set()
+        
+    lines = []
+    indent = "    " * indent_level
+    tag_name = "structured_response" if indent_level == 0 else instance.__class__.__name__.lower()
+    
+    lines.append(f"{indent}<{tag_name}>")
+    
+    # Iterate over model fields to preserve original types
+    for field_name, field_info in instance.__class__.model_fields.items():
+        # Skip excluded fields
+        if field_name in exclude:
+            continue
+            
+        # Get the actual field value from the instance
+        field_value = getattr(instance, field_name, None)
+        
+        if field_value is None and exclude_none:
+            continue
+            
+        field_type = field_info.annotation
+        
+        # Handle Optional types
+        is_optional = get_origin(field_type) is Union and type(None) in get_args(field_type)
+        if is_optional:
+            field_type = next(arg for arg in get_args(field_type) if arg is not type(None))
+        
+        # Convert field value to XML
+        field_xml = _convert_field_to_xml(field_name, field_value, field_type, indent_level + 1, exclude_none, exclude)
+        lines.extend(field_xml)
+    
+    lines.append(f"{indent}</{tag_name}>")
+    return "\n".join(lines)
+
+
+def _convert_field_to_xml(field_name: str, field_value, field_type, indent_level: int, exclude_none: bool, exclude: set[str]) -> list[str]:
+    """Helper function to convert a single field to XML format."""
+    lines = []
+    indent = "    " * indent_level
+    
+    if field_value is None:
+        if not exclude_none:
+            lines.append(f"{indent}<{field_name}></{field_name}>")
+        return lines
+    
+    # Handle lists
+    if get_origin(field_type) is list:
+        lines.append(f'{indent}<{field_name} type="list">')
+        if isinstance(field_value, list):
+            element_type = get_args(field_type)[0]
+            for item in field_value:
+                if isinstance(item, BaseModel):
+                    lines.append(f'{indent}    <{field_name}_element type="class">')
+                    lines.append(instance_to_xml(item, exclude_none, exclude, indent_level + 2))
+                    lines.append(f'{indent}    </{field_name}_element>')
+                else:
+                    type_name = _get_xml_type_name(type(item))
+                    lines.append(f'{indent}    <{field_name}_element type="{type_name}">{_format_basic_value(item)}</{field_name}_element>')
+        lines.append(f"{indent}</{field_name}>")
+    
+    # Handle nested BaseModel instances
+    elif isinstance(field_value, BaseModel):
+        lines.append(f'{indent}<{field_name} type="class">')
+        lines.append(instance_to_xml(field_value, exclude_none, exclude, indent_level + 1))
+        lines.append(f"{indent}</{field_name}>")
+    
+    # Handle basic types
+    else:
+        type_name = _get_xml_type_name(type(field_value))
+        formatted_value = _format_basic_value(field_value)
+        lines.append(f'{indent}<{field_name} type="{type_name}">{formatted_value}</{field_name}>')
+    
+    return lines
+
+
+def _get_xml_type_name(python_type) -> str:
+    """Convert Python type to XML type name."""
+    if python_type is int:
+        return "integer"
+    elif python_type is str:
+        return "string"
+    elif python_type is float:
+        return "float"
+    elif python_type is bool:
+        return "boolean"
+    elif python_type in (date, datetime, time):
+        return python_type.__name__.lower()
+    elif issubclass(python_type, Enum):
+        return "enum"
+    else:
+        return python_type.__name__.lower()
+
+
+def _format_basic_value(value) -> str:
+    """Format a basic value for XML output."""
+    if isinstance(value, bool):
+        return str(value).lower()
+    elif isinstance(value, (date, datetime, time)):
+        return str(value)
+    elif isinstance(value, Enum):
+        # For enums, show both possible values and selected value
+        enum_class = value.__class__
+        possible_values = [str(e.value) for e in enum_class]
+        return f"[One of: {', '.join(possible_values)}] - Selected: {value.value}"
+    else:
+        return str(value)
