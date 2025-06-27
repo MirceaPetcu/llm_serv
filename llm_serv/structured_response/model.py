@@ -1,7 +1,7 @@
 from typing import List
 from pydantic import BaseModel, ConfigDict
 from llm_serv.structured_response.from_text import response_from_xml
-from llm_serv.structured_response.to_text import response_to_xml
+from llm_serv.structured_response.to_text import response_to_xml, instance_to_xml
 
 
 class StructuredResponse(BaseModel):
@@ -23,8 +23,18 @@ class StructuredResponse(BaseModel):
     
     def __str__(self):
         """
-        Returns a JSON string representation of the StructuredResponse object,
+        Returns an XML string representation of the StructuredResponse object,
         excluding fields with None values.
         """
-        return self.model_dump_json(indent=2, exclude_none=True)
+        return instance_to_xml(self, exclude_none=True, exclude=set())
+    
+    def to_xml(self, exclude_none: bool = True, exclude: set[str] | None = None) -> str:
+        """
+        Returns an XML string representation of the StructuredResponse object.
+        
+        Args:
+            exclude_none: Whether to exclude fields with None values
+            exclude: Set of field names to exclude from the output
+        """
+        return instance_to_xml(self, exclude_none=exclude_none, exclude=exclude or set())
         
