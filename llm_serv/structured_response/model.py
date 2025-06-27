@@ -5,7 +5,38 @@ from llm_serv.structured_response.to_text import response_to_xml, instance_to_xm
 
 
 class StructuredResponse(BaseModel):
-    model_config = ConfigDict(validate_assignment=False, arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        validate_assignment=False, 
+        arbitrary_types_allowed=True,
+        title="Structured Response",
+        description=""
+    )
+
+    def get_title(self) -> str:
+        """
+        Returns the title of the StructuredResponse object.
+        """
+        return self.model_config.title
+    
+    def get_description(self) -> str:
+        """
+        Returns the description of the StructuredResponse object.
+        """
+        return self.model_config.description
+
+    def set_title(self, title: str) -> None:
+        """
+        Sets the title of the StructuredResponse object.
+        """
+        self.model_config.title = title
+        self.model_rebuild()
+    
+    def set_description(self, description: str) -> None:
+        """
+        Sets the description of the StructuredResponse object.
+        """
+        self.model_config.description = description
+        self.model_rebuild()
 
     @classmethod
     def from_text(cls, xml: str, exclude_fields: List[str] = []) -> 'StructuredResponse':
