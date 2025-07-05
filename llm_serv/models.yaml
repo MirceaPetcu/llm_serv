@@ -64,6 +64,36 @@ MODELS:
       structured_output: true
     config: {}
 
+  OPENAI/gpt-4.1-mini:
+    internal_model_id: gpt-4.1-mini
+    max_tokens: 1047576
+    max_output_tokens: 32768
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+
+  OPENAI/gpt-4.1:
+    internal_model_id: gpt-4.1
+    max_tokens: 1047576
+    max_output_tokens: 32768
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+
+  OPENAI/o4-mini:
+    internal_model_id: o4-mini
+    max_tokens: 200000
+    max_output_tokens: 16000
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+
   AWS/claude-3-5-sonnet:
     internal_model_id: anthropic.claude-3-5-sonnet-20240620-v1:0
     max_tokens: 200000
