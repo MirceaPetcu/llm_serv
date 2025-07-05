@@ -127,7 +127,7 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
             # This is async now, so await it
             response = await llm_service(request)
             
-            logger.info(f"Response: {response.model_dump(exclude={'conversation'})}")
+            logger.info(f"Response: {response.model_dump(exclude={'request': {'conversation'}})}")
             return response
 
         except InternalConversionException as e:

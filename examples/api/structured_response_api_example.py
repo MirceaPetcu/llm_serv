@@ -1,13 +1,13 @@
+import asyncio
 from enum import Enum
 from typing import Optional
-import asyncio
 
 from pydantic import Field
-from llm_serv.core.base import LLMRequest
-from llm_serv import LLMService
-from llm_serv.conversation import Conversation
 from rich import print as rprint
 
+from llm_serv import LLMService
+from llm_serv.conversation import Conversation
+from llm_serv.core.base import LLMRequest
 from llm_serv.structured_response.model import StructuredResponse
 
 

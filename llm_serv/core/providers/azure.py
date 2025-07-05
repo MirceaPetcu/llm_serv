@@ -10,7 +10,7 @@ from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
 from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
-from llm_serv.core.components.tokens import LLMTokens
+from llm_serv.core.components.tokens import ModelTokens
 from llm_serv.core.exceptions import CredentialsException, ServiceCallException
 from llm_serv.structured_response.model import StructuredResponse
 
@@ -77,7 +77,7 @@ class AzureOpenAILLMProvider(LLMProvider):
             messages.append({"role": message.role.value, "content": content})
 
         config = {
-            "max_tokens": request.max_completion_tokens,
+            "max_completion_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,
             "temperature": request.temperature,
             "top_p": request.top_p,
             "response_format": ({"type": "text"})
@@ -88,7 +88,7 @@ class AzureOpenAILLMProvider(LLMProvider):
             "config": config
         }
 
-    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, LLMTokens]:
+    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, ModelTokens]:
         """
         Make a call to Azure OpenAI with proper error handling.
         Returns a tuple of (output_text, tokens_info)
@@ -103,17 +103,16 @@ class AzureOpenAILLMProvider(LLMProvider):
             api_response = await self._client.chat.completions.create(
                 model=self.model.internal_model_id,
                 messages=messages,
-                max_tokens=config["max_tokens"],
+                max_completion_tokens=config["max_completion_tokens"],
                 temperature=config["temperature"],
                 top_p=config["top_p"],
                 response_format=config["response_format"],
             )
             
             output = api_response.choices[0].message.content
-            tokens = LLMTokens(
+            tokens = ModelTokens(
                 input_tokens=api_response.usage.prompt_tokens,
-                completion_tokens=api_response.usage.completion_tokens,
-                total_tokens=api_response.usage.total_tokens,
+                output_tokens=api_response.usage.completion_tokens
             )
 
             return output, tokens
@@ -136,7 +135,7 @@ if __name__ == "__main__":
     from llm_serv.structured_response.model import StructuredResponse
 
     async def test_azure():
-        model: Model = LLMService.get_model("AZURE/gpt-4o-mini")
+        model: Model = LLMService.get_model("AZURE/gpt-4.1-mini")
         llm = AzureOpenAILLMProvider(model)
 
         class MyClass(StructuredResponse):

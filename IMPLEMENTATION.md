@@ -65,7 +65,7 @@ providers: list[ModelProvider] = LLMService.list_providers()
 How to get a model directly:
 
 ```python
-model: Model = LLMService.get_model(model_id="OPENAI/gpt-4o-mini")  # throws exceptions/ModelNotFoundException if there is no such model
+model: Model = LLMService.get_model(model_id="OPENAI/gpt-4.1-mini")  # throws exceptions/ModelNotFoundException if there is no such model
 ```
 
 How to get the llm provider object:

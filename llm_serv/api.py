@@ -17,6 +17,7 @@ class Model(BaseModel):
     max_tokens: int
     max_output_tokens: int
     capabilities: dict = {}
+    price: dict = {}
     config: dict = {}
 
     # TODO implement __str__ and __repr__
@@ -41,6 +42,23 @@ class Model(BaseModel):
     def structured_output(self) -> bool:
         return self.capabilities.get("structured_output", False)
 
+    @property
+    def input_price_per_1m_tokens(self) -> float:
+        return self.price.get("input_price_per_1m_tokens", 0)
+
+    @property
+    def cached_input_price_per_1m_tokens(self) -> float:
+        return self.price.get("cached_input_price_per_1m_tokens", 0)
+
+    @property
+    def output_price_per_1m_tokens(self) -> float:
+        return self.price.get("output_price_per_1m_tokens", 0)
+    
+    @property
+    def reasoning_output_price_per_1m_tokens(self) -> float:
+        if "reasoning_output_price_per_1m_tokens" not in self.price:
+            return self.output_price_per_1m_tokens
+        return self.price.get("reasoning_output_price_per_1m_tokens", 0)
 
 class LLMService:
     _instance = None
@@ -244,7 +262,15 @@ class LLMService:
             case "OPENAI":
                 from llm_serv.core.providers.oai import OpenAILLMProvider
                 return OpenAILLMProvider(model)
+
+            case "GOOGLE":
+                from llm_serv.core.providers.gcp import GoogleLLMProvider
+                return GoogleLLMProvider(model)
             
+            case "OPENROUTER":
+                from llm_serv.core.providers.openrouter import OpenRouterLLMProvider
+                return OpenRouterLLMProvider(model)
+
             case "MOCK":
                 from llm_serv.core.providers.mock import MockLLMProvider
                 return MockLLMProvider(model)

@@ -13,15 +13,13 @@ PROVIDERS:
   OPENAI:
     name: OPENAI
     config: {}
-  MISTRAL:
-    name: MISTRAL
+  GOOGLE:
+    name: GOOGLE
     config: {}
-  ANTHROPIC:
-    name: ANTHROPIC
+  OPENROUTER:
+    name: OPENROUTER
     config: {}
-  GROK:
-    name: GROK
-    config: {}
+
 
 MODELS:
   AZURE/gpt-4o:    
@@ -32,29 +30,14 @@ MODELS:
       image_support: true
       document_support: true
       structured_output: true
+    price:
+      input_price_per_1m_tokens: 0
+      cached_input_price_per_1m_tokens: 0
+      output_price_per_1m_tokens: 0
+      reasoning_output_price_per_1m_tokens: 0      
     config: {}
 
   AZURE/gpt-4o-mini:
-    internal_model_id: gpt-4o-mini
-    max_tokens: 128000
-    max_output_tokens: 16000
-    capabilities:
-      image_support: true
-      document_support: true
-      structured_output: true
-    config: {}
-
-  OPENAI/gpt-4o:
-    internal_model_id: gpt-4o
-    max_tokens: 128000
-    max_output_tokens: 16000
-    capabilities:
-      image_support: true
-      document_support: true
-      structured_output: true
-    config: {}
-
-  OPENAI/gpt-4o-mini:
     internal_model_id: gpt-4o-mini
     max_tokens: 128000
     max_output_tokens: 16000
@@ -71,7 +54,11 @@ MODELS:
     capabilities:
       image_support: true
       document_support: true
-      structured_output: true
+      structured_output: true 
+    price:
+      input_price_per_1m_tokens: 0.4
+      cached_input_price_per_1m_tokens: 0.1
+      output_price_per_1m_tokens: 1.6
     config: {}
 
   OPENAI/gpt-4.1:
@@ -82,6 +69,10 @@ MODELS:
       image_support: true
       document_support: true
       structured_output: true
+    price:
+      input_price_per_1m_tokens: 2
+      cached_input_price_per_1m_tokens: 0.5
+      output_price_per_1m_tokens: 8
     config: {}
 
   OPENAI/o4-mini:
@@ -92,6 +83,10 @@ MODELS:
       image_support: true
       document_support: true
       structured_output: true
+    price:
+      input_price_per_1m_tokens: 1.1
+      cached_input_price_per_1m_tokens: 0.275
+      output_price_per_1m_tokens: 4.4
     config: {}
 
   AWS/claude-3-5-sonnet:
@@ -119,5 +114,55 @@ MODELS:
     capabilities:
       image_support: true
       document_support: false
+    config: {}
+
+  GOOGLE/gemini-2.5-flash:
+    internal_model_id: gemini-2.5-flash-preview-05-20
+    max_tokens: 1047576
+    max_output_tokens: 65535
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+
+  OPENROUTER/deepseek-v3-free:
+    internal_model_id: deepseek/deepseek-chat-v3-0324:free
+    max_tokens: 128000
+    max_output_tokens: 32768
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+  
+  OPENROUTER/deepseek-r1-free:
+    internal_model_id: deepseek/deepseek-r1-0528:free
+    max_tokens: 163840
+    max_output_tokens: 32768
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+  
+  OPENROUTER/llama-4-maverick-free:
+    internal_model_id: meta-llama/llama-4-maverick:free
+    max_tokens: 128000
+    max_output_tokens: 4028
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    config: {}
+
+  GOOGLE/gemini-2.0-flash-exp:
+    internal_model_id: google/gemini-2.0-flash-exp:free
+    max_tokens: 1047576
+    max_output_tokens: 65535
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
     config: {}
   

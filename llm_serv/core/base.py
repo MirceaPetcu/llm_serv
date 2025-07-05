@@ -7,7 +7,7 @@ from typing import Any, Callable, Coroutine
 from llm_serv.logger import logger
 from llm_serv.core.components.request import LLMRequest
 from llm_serv.core.components.response import LLMResponse
-from llm_serv.core.components.tokens import LLMTokens
+from llm_serv.core.components.tokens import TokenTracker
 from llm_serv.core.components.types import LLMRequestType
 from llm_serv.core.exceptions import (InternalConversionException,
                                       ServiceCallException,
@@ -38,7 +38,7 @@ class LLMProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, LLMTokens]:
+    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, TokenTracker]:
         """
         This method calls the underlying provider directly, and handles failure cases like throttling with retries internally
         Returns a tuple of (output_text, tokens_info).        
@@ -117,7 +117,7 @@ class LLMProvider(abc.ABC):
 
             # Execute the service call through the retry wrapper
             # Note: Only ServiceCallThrottlingException will be retried internally by the wrapper
-            output, tokens = await self.__retry_wrapper(coro_func=service_call_coro)
+            output, model_tokens = await self.__retry_wrapper(coro_func=service_call_coro)
 
             # Check if the wrapper returned None unexpectedly (should raise instead)
             if output is None:
@@ -139,7 +139,7 @@ class LLMProvider(abc.ABC):
                     # Wrap potential conversion errors in a specific exception type
                     raise StructuredResponseException(f"Failed to convert LLM output to structured format: {conversion_error}") from conversion_error
 
-            response.tokens = tokens
+            response.tokens.add(self.model.id, model_tokens)
 
             response.end_time = time.time()
             # Total time reflects the duration from the first attempt including any backoff delays managed by the wrapper

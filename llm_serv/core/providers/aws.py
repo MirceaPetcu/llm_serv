@@ -12,7 +12,7 @@ from llm_serv.conversation.role import Role
 from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
 from llm_serv.core.components.response import LLMResponse
-from llm_serv.core.components.tokens import LLMTokens
+from llm_serv.core.components.tokens import ModelTokens
 from llm_serv.core.exceptions import (CredentialsException,
                                       InternalConversionException,
                                       ServiceCallException,
@@ -180,7 +180,7 @@ class AWSLLMProvider(LLMProvider):
             )
 
             config = {
-                "maxTokens": request.max_completion_tokens,
+                "maxTokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,
                 "temperature": request.temperature,
                 "topP": request.top_p,
             }
@@ -193,7 +193,7 @@ class AWSLLMProvider(LLMProvider):
         except Exception as e:
             raise InternalConversionException(f"Failed to convert request for AWS: {str(e)}") from e
 
-    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, LLMTokens]:
+    async def _llm_service_call(self, request: LLMRequest) -> tuple[str, ModelTokens]:
         """
         Make a call to AWS Bedrock with proper error handling.
         Returns a tuple of (output_text, tokens_info)
@@ -217,10 +217,9 @@ class AWSLLMProvider(LLMProvider):
             )
 
             output = api_response["output"]["message"]["content"][0]["text"]
-            tokens = LLMTokens(
+            tokens = ModelTokens(
                 input_tokens=api_response["usage"]["inputTokens"],
-                completion_tokens=api_response["usage"]["outputTokens"],
-                total_tokens=api_response["usage"]["inputTokens"] + api_response["usage"]["outputTokens"]
+                output_tokens=api_response["usage"]["outputTokens"]
             )
 
             return output, tokens

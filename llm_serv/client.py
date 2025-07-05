@@ -103,8 +103,8 @@ class LLMServiceClient:
             list[str]: List of models as model_id strings.
             Example:
             [
-                "AZURE_OPENAI/gpt-4o-mini",
-                "OPENAI/gpt-4-mini",
+                "AZURE_OPENAI/gpt-4.1-mini",
+                "OPENAI/gpt-4.1-mini",
                 "AWS/claude-3-haiku",
             ]
 
@@ -212,9 +212,22 @@ class LLMServiceClient:
             if response.status_code != 200:
                 try:
                     error_data = response.json()
-                    error_detail = error_data.get("detail", {})
-                    error_type = error_detail.get("error", "unknown_error")
-                    error_msg = error_detail.get("message", str(error_data))
+                    
+                    # Handle different error response formats
+                    if isinstance(error_data.get("detail"), list):
+                        # FastAPI validation errors format
+                        error_msg = f"Validation errors: {error_data['detail']}"
+                        error_type = "validation_error"
+                    elif isinstance(error_data.get("detail"), dict):
+                        # Custom error format
+                        error_detail = error_data["detail"]
+                        error_type = error_detail.get("error", "unknown_error")
+                        error_msg = error_detail.get("message", str(error_data))
+                    else:
+                        # Fallback format
+                        error_type = "unknown_error"
+                        error_msg = str(error_data)
+                    
                     self.logger.error(f"Chat request failed (status {response.status_code}, type {error_type}): {error_msg}")
 
                     if response.status_code == 404 and error_type == "model_not_found":
@@ -223,12 +236,17 @@ class LLMServiceClient:
                         raise InternalConversionException(error_msg)
                     elif response.status_code == 429 and error_type == "service_throttling_exception":
                         raise ServiceCallThrottlingException(error_msg)
-                    elif response.status_code == 422 and error_type == "structured_response_exception":
-                        raise StructuredResponseException(
-                            error_msg,
-                            xml=error_detail.get("xml", ""),
-                            return_class=error_detail.get("return_class")
-                        )
+                    elif response.status_code == 422:
+                        if error_type == "structured_response_exception":
+                            error_detail = error_data.get("detail", {})
+                            raise StructuredResponseException(
+                                error_msg,
+                                xml=error_detail.get("xml", ""),
+                                return_class=error_detail.get("return_class")
+                            )
+                        else:
+                            # Validation error or other 422 error
+                            raise ServiceCallException(f"Validation error: {error_msg}")
                     elif response.status_code == 401 and error_type == "credentials_not_set":
                         raise CredentialsException(error_msg)
                     elif response.status_code == 502 and error_type == "service_call_error":

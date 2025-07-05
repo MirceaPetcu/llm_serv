@@ -5,7 +5,7 @@ from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.image import Image
 from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
-from llm_serv.core.oai import OpenAILLMService, check_credentials
+from llm_serv.core._delete_oai import OpenAILLMService, check_credentials
 from llm_serv.core.base import LLMRequest
 from llm_serv.api import REGISTRY
 
