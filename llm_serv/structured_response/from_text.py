@@ -1,5 +1,5 @@
 from llm_serv.core.exceptions import StructuredResponseException
-from typing import Type, get_origin, get_args, Union, List, Optional, Any, Dict
+from typing import Type, get_origin, get_args, Union, List, Optional
 from enum import Enum
 from pydantic import BaseModel
 from datetime import date as date_type, datetime as datetime_type, time as time_type
@@ -7,7 +7,7 @@ import dateparser
 import re
 from rich import print as rprint
 
-def extract_children_xml(xml: str) -> Dict[str, str]:
+def extract_children_xml(xml: str) -> list[dict[str, str]]:
     """
     This method receives a string and returns all top-level children elements as a list of dictionaries.
     An element is a dictionary with the following keys:
@@ -102,7 +102,7 @@ def get_field_type(class_type: Type):
     return fields
 
 
-def response_from_xml(xml: str, return_class: Type['StructuredResponse'], is_root: bool = True, exclude_fields: List[str] = []) -> 'StructuredResponse':
+def response_from_xml(xml: str, return_class: Type[BaseModel], is_root: bool = True, exclude_fields: list[str] = []) -> BaseModel:
     try:
         print(f"\nParsing XML for class {return_class.__name__}")
         
@@ -118,10 +118,36 @@ def response_from_xml(xml: str, return_class: Type['StructuredResponse'], is_roo
         
         # Handle root element
         if is_root:
-            xml = xml.replace('<structured_response>', '').replace('</structured_response>', '')
+            # Dynamically detect and remove the root element based on the class title or name
+            # Get the title from the class, fallback to class name
+            root_tag_name = getattr(return_class, '_title', return_class.__name__.lower())
+            # Check if it's a Field object (has default attribute) and extract the value
+            if hasattr(root_tag_name, 'default') and not isinstance(root_tag_name, str):
+                root_tag_name = root_tag_name.default
+            # If title is the default "Structured Response", use class name instead
+            if root_tag_name == "Structured Response":
+                root_tag_name = return_class.__name__
+            # Normalize the title to match XML tag format using the same method as StructuredResponse
+            from llm_serv.structured_response.model import StructuredResponse
+            root_tag_name = StructuredResponse._convert_identifier_to_python_identifier(root_tag_name)
+            # Also try the class name as fallback
+            class_name_lower = return_class.__name__.lower()
+            
+            # Try to remove the root element with the title first, then class name
+            # Use regex to handle whitespace and attributes in the opening tag
+            title_pattern = rf'<{root_tag_name}[^>]*>(.*?)</{root_tag_name}>'
+            class_pattern = rf'<{class_name_lower}[^>]*>(.*?)</{class_name_lower}>'
+            
+            title_match = re.search(title_pattern, xml, re.DOTALL)
+            class_match = re.search(class_pattern, xml, re.DOTALL)
+            
+            if title_match:
+                xml = title_match.group(1)
+            elif class_match:
+                xml = class_match.group(1)
         
         # Extract children elements
-        children:dict = extract_children_xml(xml)    
+        children: list[dict[str, str]] = extract_children_xml(xml)    
         
         # For each child, determine is there is a corresponding field name in the return_class fields
         # If so, change the child value for "type" with the corresponding field type
@@ -273,7 +299,7 @@ if __name__ == "__main__":
         example_list: List[SubClassType1] = Field(default=[SubClassType1()], description="A list of sub class type 1 fields")
         example_float_list_optional: Optional[List[float]] = Field(default=None, description="An optional list of floats")        
         example_optional_subclasstype1: Optional[SubClassType1] = Field(default=None, description="An optional sub class type 1 field")
-        example_nested_subclasstype3: SubClassType3 = Field(default=SubClassType3(), description="A nested sub class type 3 field"),
+        example_nested_subclasstype3: SubClassType3 = Field(default=SubClassType3(), description="A nested sub class type 3 field")
         example_date: date = Field(description="A date field including month from 2023")
         example_datetime: datetime = Field(description="A full date time field from 2023")
         example_time: time = Field(description="A time field from today")

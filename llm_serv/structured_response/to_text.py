@@ -1,14 +1,11 @@
 from datetime import date, datetime, time
 from enum import Enum
-from typing import Dict, List, Optional, Type, Union, get_args, get_origin, TYPE_CHECKING
+from typing import Type, Union, get_args, get_origin
 
-from pydantic import BaseModel, create_model
-
-if TYPE_CHECKING:
-    from llm_serv.structured_response.model import StructuredResponse
+from pydantic import BaseModel
 
 
-def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str] = []) -> str:
+def response_to_xml(object: Type[BaseModel], exclude_fields: list[str] = []) -> str:
     """
     Converts a StructuredResponse class to XML format.
 
@@ -167,11 +164,25 @@ def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str
         ]
 
     def generate_example_xml(
-        object: Type["StructuredResponse"], indent_level: int = 0, exclude_fields: List[str] = []
+        object: Type[BaseModel], indent_level: int = 0, exclude_fields: list[str] = []
     ) -> list[str]:
         lines = []
         indent = "    " * indent_level
-        tag_name = "structured_response" if indent_level == 0 else object.__name__.lower()
+        
+        # Use class title for root level, class name for nested levels
+        if indent_level == 0:
+            # Get the class title, fallback to class name if not set
+            title = getattr(object, '_title', object.__name__.lower())
+            if hasattr(title, 'default') and not isinstance(title, str):
+                title = title.default
+            # If title is the default "Structured Response", use class name instead
+            if title == "Structured Response":
+                title = object.__name__
+            # Normalize the title using the same method as StructuredResponse
+            from llm_serv.structured_response.model import StructuredResponse
+            tag_name = StructuredResponse._convert_identifier_to_python_identifier(title)
+        else:
+            tag_name = object.__name__.lower()
 
         # Root response tag doesn't need type attribute
         lines.append(f"{indent}<{tag_name}>")
@@ -230,7 +241,7 @@ def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str
                         else (
                             "string"
                             if field_type is str
-                            else "float" if field_type is float else field_type.__name__.lower()
+                            else "float" if field_type is float else (field_type.__name__.lower() if field_type else "unknown")
                         )
                     )
                     value_text = type_name
@@ -244,7 +255,7 @@ def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str
         lines.append(f"{indent}</{tag_name}>")
         return lines
 
-    def generate_field_descriptions(object: Type["StructuredResponse"], exclude_fields: List[str] = []) -> list[str]:
+    def generate_field_descriptions(object: Type[BaseModel], exclude_fields: list[str] = []) -> list[str]:
         all_descriptions = []
         described_classes = set()  # Track described classes to avoid duplicates
 
@@ -303,7 +314,8 @@ def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str
                     collect_nested_descriptions(current_field_type)
 
         # Then describe root class
-        all_descriptions.append(f"\nHere is the description for each field for the <structured_response> main element:")
+        root_tag_name = getattr(object, '_title', object.__name__.lower())
+        all_descriptions.append(f"\nHere is the description for each field for the <{root_tag_name}> main element:")
         for field_name, field_info in object.model_fields.items():
             if field_name not in exclude_fields:
                 all_descriptions.append(_get_field_description(field_name, field_info))
@@ -398,7 +410,7 @@ def response_to_xml(object: Type["StructuredResponse"], exclude_fields: List[str
     return "\n".join(instructions)
 
 
-def instance_to_xml(instance: "StructuredResponse", exclude_none: bool = False, exclude: set[str] = None, indent_level: int = 0) -> str:
+def instance_to_xml(instance: BaseModel, exclude_none: bool = False, exclude: set[str] | None = None, indent_level: int = 0) -> str:
     """
     Converts a StructuredResponse instance to XML format with actual values.
     
@@ -416,7 +428,20 @@ def instance_to_xml(instance: "StructuredResponse", exclude_none: bool = False, 
         
     lines = []
     indent = "    " * indent_level
-    tag_name = "structured_response" if indent_level == 0 else instance.__class__.__name__.lower()
+    
+    # Use class title for root level, class name for nested levels
+    if indent_level == 0:
+        title = getattr(instance.__class__, '_title', instance.__class__.__name__.lower())
+        if hasattr(title, 'default') and not isinstance(title, str):
+            title = title.default
+        # If title is the default "Structured Response", use class name instead
+        if title == "Structured Response":
+            title = instance.__class__.__name__
+        # Normalize the title using the same method as StructuredResponse
+        from llm_serv.structured_response.model import StructuredResponse
+        tag_name = StructuredResponse._convert_identifier_to_python_identifier(title)
+    else:
+        tag_name = instance.__class__.__name__.lower()
     
     lines.append(f"{indent}<{tag_name}>")
     

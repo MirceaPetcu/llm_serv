@@ -20,6 +20,7 @@ class PriorityEnum(Enum):
 
 
 class Address(StructuredResponse):
+    _title = "Location Address"
     street: str = Field(description="Street address")
     city: str = Field(description="City name")
     postal_code: str = Field(description="Postal code")
@@ -27,12 +28,14 @@ class Address(StructuredResponse):
 
 
 class Contact(StructuredResponse):
+    _title = "Contact Information"
     email: str = Field(description="Email address")
     phone: Optional[str] = Field(default=None, description="Phone number")
     address: Optional[Address] = Field(default=None, description="Physical address")
 
 
 class Task(StructuredResponse):
+    _title = "Project Task"
     id: int = Field(description="Task ID")
     title: str = Field(description="Task title")
     description: Optional[str] = Field(default=None, description="Task description")
@@ -43,6 +46,7 @@ class Task(StructuredResponse):
 
 
 class Project(StructuredResponse):
+    _title = "Project Details"
     name: str = Field(description="Project name")
     status: StatusEnum = Field(default=StatusEnum.PENDING, description="Project status")
     tasks: list[Task] = Field(default=[], description="List of project tasks")
@@ -51,6 +55,7 @@ class Project(StructuredResponse):
 
 
 class ComplicatedTestClass(StructuredResponse):
+    _title = "Complex Business Data"
     # Basic types
     basic_string: str = Field(description="A basic string field")
     basic_int: int = Field(default=42, ge=0, le=1000, description="A basic integer field")
