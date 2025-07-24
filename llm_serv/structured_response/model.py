@@ -1,42 +1,49 @@
+import re
 from typing import List
+
 from pydantic import BaseModel, ConfigDict
+
 from llm_serv.structured_response.from_text import response_from_xml
-from llm_serv.structured_response.to_text import response_to_xml, instance_to_xml
+from llm_serv.structured_response.to_text import instance_to_xml, response_to_xml
 
 
 class StructuredResponse(BaseModel):
     model_config = ConfigDict(
-        validate_assignment=False, 
-        arbitrary_types_allowed=True,
-        title="Structured Response",
-        description=""
+        validate_assignment=False,
+        arbitrary_types_allowed=True
     )
+    
+    # Class-level attributes for title and description
+    _title: str = "Structured Response"
+    _description: str = ""
 
-    def get_title(self) -> str:
-        """
-        Returns the title of the StructuredResponse object.
-        """
-        return self.model_config.title
+    def get_title(self) -> str:        
+        return self.__class__._title
     
     def get_description(self) -> str:
-        """
-        Returns the description of the StructuredResponse object.
-        """
-        return self.model_config.description
+        return self.__class__._description
 
     def set_title(self, title: str) -> None:
-        """
-        Sets the title of the StructuredResponse object.
-        """
-        self.model_config.title = title
-        self.model_rebuild()
+        self.__class__._title = title
     
     def set_description(self, description: str) -> None:
-        """
-        Sets the description of the StructuredResponse object.
-        """
-        self.model_config.description = description
-        self.model_rebuild()
+        self.__class__._description = description
+
+    @classmethod
+    def get_class_title(cls) -> str:
+        return cls._title
+    
+    @classmethod
+    def get_class_description(cls) -> str:
+        return cls._description
+
+    @classmethod
+    def set_class_title(cls, title: str) -> None:
+        cls._title = title
+    
+    @classmethod
+    def set_class_description(cls, description: str) -> None:
+        cls._description = description
 
     @classmethod
     def from_text(cls, xml: str, exclude_fields: List[str] = []) -> 'StructuredResponse':
@@ -69,3 +76,10 @@ class StructuredResponse(BaseModel):
         """
         return instance_to_xml(self, exclude_none=exclude_none, exclude=exclude or set())
         
+    @staticmethod        
+    def _convert_identifier_to_python_identifier(identifier: str) -> str:
+        python_identifier = identifier.strip().lower()
+        python_identifier = python_identifier.replace(' ', '_').replace('/', '_').replace('-', '_')                
+        python_identifier = re.sub(r'[^a-zA-Z0-9_]', '_', python_identifier)        
+        python_identifier = re.sub(r'_+', '_', python_identifier)
+        return python_identifier

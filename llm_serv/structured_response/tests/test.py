@@ -16,17 +16,21 @@ class AnEnum(Enum):
     TYPE2 = "type2"
 
 class SubClassType1(StructuredResponse):
+    _title = "Sub Component"
     sub_string: str = Field(default="", description="A sub string field")
 
 
 class SubClassType2(StructuredResponse):
+    _title = "List Component"
     sub_list: Optional[List[str]] = Field(default=None, description="A sub list of strings field")
 
 class SubClassType3(StructuredResponse):
+    _title = "Nested Component"
     element1: SubClassType1 = Field(default=SubClassType1(), description="An element 1 field")
     element_sublist: List[SubClassType2] = Field(default=[], description="An element 2 list of sub class type 2 fields")
 
 class TestStructuredResponse(StructuredResponse):
+    _title = "Complex Test Response"
     example_string: str = Field(default="", description="A string field")
     example_string_none: Optional[str] = Field(default=None, description="An optional string field")    
     example_int: int = Field(default=5, ge=0, le=10, description="An integer field with values between 0 and 10, default is 5")
@@ -36,7 +40,7 @@ class TestStructuredResponse(StructuredResponse):
     example_list: List[SubClassType1] = Field(default=[SubClassType1()], description="A list of sub class type 1 fields")
     example_float_list_optional: Optional[List[float]] = Field(default=None, description="An optional list of floats")        
     example_optional_subclasstype1: Optional[SubClassType1] = Field(default=None, description="An optional sub class type 1 field")
-    example_nested_subclasstype3: SubClassType3 = Field(default=SubClassType3(), description="A nested sub class type 3 field"),
+    example_nested_subclasstype3: SubClassType3 = Field(default=SubClassType3(), description="A nested sub class type 3 field")
     example_date: date = Field(description="A date field including month from 2023")
     example_datetime: datetime = Field(description="A full date time field from 2023")
     example_time: time = Field(description="A time field from today")
@@ -49,7 +53,7 @@ if __name__ == "__main__":
     print(xml_text)
 
     xml_text = """```xml
-    <response>
+    <complex_test_response>
     <example_string type="string">[string]</example_string><example_int>2</example_int>    
     <example_int_list  type="list">
         <example_int_list_element type="integer">2</example_int_list_element>
@@ -108,7 +112,7 @@ if __name__ == "__main__":
             </subclasstype1>
         </example_optional_list_of_subclasstype1_element>
     </example_optional_list_of_subclasstype1>
-</response> This is a complete example.```"""
+</complex_test_response> This is a complete example.```"""
 
     print("\n"+"="*120)
     print("Testing StructuredResponse from XML")

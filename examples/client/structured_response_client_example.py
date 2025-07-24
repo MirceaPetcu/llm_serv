@@ -41,7 +41,7 @@ async def main():
     client = LLMServiceClient(host="localhost", port=9999, timeout=20.0)
 
     # Set the model to use
-    client.set_model("AWS/claude-3-haiku")
+    client.set_model("OPENAI/gpt-4.1-mini")
 
     prompt = f"""
     You are a weather expert. You are given a weather forecast for a specific location.
