@@ -71,7 +71,7 @@ def response_to_xml(object: Type[BaseModel], exclude_fields: list[str] = []) -> 
     1. Basic Structure:
        - Each field gets its own XML tag using the field name: <field_name type="data type">...</field_name>
        - Indent each level with 4 spaces
-       - Root class uses <structured_response> as tag name, no type required as it's always a class, nested classes use their lowercase class name
+       - Root class uses the class title as tag name, no type required as it's always a class, nested classes use their lowercase class name
 
     2. Optional Fields:
        - Add comment after opening tag: <!-- if null or not applicable leave this element empty -->
@@ -160,7 +160,7 @@ def response_to_xml(object: Type[BaseModel], exclude_fields: list[str] = []) -> 
 
     def generate_instructions() -> list[str]:
         return [
-            "\nRespond without any other explanations or comments, prepended or appended to the <structured_response> opening and closing tags. Pay attention that all fields are attended to, and properly enclosed within their own tags.\n Here is an example of the output format:\n"
+            f"\nRespond without any other explanations or comments, prepended or appended to the <{object._title}> opening and closing tags. Pay attention that all fields are attended to, and properly enclosed within their own tags.\n Here is an example of the output format:\n"
         ]
 
     def generate_example_xml(
