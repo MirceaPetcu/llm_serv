@@ -394,10 +394,10 @@ def response_to_xml(object: Type[BaseModel], exclude_fields: list[str] = []) -> 
             values = [str(e.value) for e in field_type]
             field_instr += f"\n  - Type: {field_type.__name__}"
             field_instr += f"\n  - Allowed values: {', '.join(values)}"
-            field_instr += f"\n  - It is always enclosed between <{field_name}> open and </{field_name}> closing tags."
+            # field_instr += f"\n  - It is always enclosed between <{field_name}> open and </{field_name}> closing tags."
             return field_instr
 
-        field_instr += f"\n  - It is always enclosed between <{field_name}> open and </{field_name}> closing tags."
+        # field_instr += f"\n  - It is always enclosed between <{field_name}> open and </{field_name}> closing tags."
 
         return field_instr
 
