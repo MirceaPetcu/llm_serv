@@ -6,7 +6,7 @@ authors = ["Stefan Dumitrescu <dumitrescu.stefan@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.13"
 pydantic = "^2.11.4"
 pytest = "8.3.3"
 fastapi = "^0.115.0"
