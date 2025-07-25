@@ -1,5 +1,5 @@
-# Use Python 3.12 slim base image
-FROM python:3.12-slim
+# Use Python 3.13 slim base image
+FROM python:3.13-slim
 
 # Set working directory
 WORKDIR /app
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install poetry
-RUN pip install --no-cache-dir poetry==2.1.2
+RUN pip install --no-cache-dir poetry==2.1.3
 
 # Copy only requirements
 COPY pyproject.toml poetry.lock ./
