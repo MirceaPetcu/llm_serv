@@ -120,6 +120,7 @@ class LLMService:
                 max_output_tokens=model_data["max_output_tokens"],
                 capabilities=model_data.get("capabilities", {}),
                 config=model_data.get("config", {}),
+                price=model_data.get("price", {}),
             )
             models.append(model)
 
