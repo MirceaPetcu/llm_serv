@@ -158,6 +158,11 @@ class OpenRouterLLMProvider(LLMProvider):
                 input_tokens=getattr(usage, 'prompt_tokens', 0),
                 output_tokens=getattr(usage, 'completion_tokens', 0),
                 total_tokens=getattr(usage, 'total_tokens', 0),
+                # Store current price rates for historical accuracy
+                input_price_per_1m_tokens=self.model.input_price_per_1m_tokens,
+                cached_input_price_per_1m_tokens=self.model.cached_input_price_per_1m_tokens,
+                output_price_per_1m_tokens=self.model.output_price_per_1m_tokens,
+                reasoning_output_price_per_1m_tokens=self.model.reasoning_output_price_per_1m_tokens,
             )
 
         except Exception as e:
