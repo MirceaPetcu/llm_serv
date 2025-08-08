@@ -75,6 +75,34 @@ MODELS:
       output_price_per_1m_tokens: 8
     config: {}
 
+  OPENAI/gpt-5-mini:
+    internal_model_id: gpt-5-mini
+    max_tokens: 1047576
+    max_output_tokens: 32768
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true 
+    price:
+      input_price_per_1m_tokens: 0.25
+      cached_input_price_per_1m_tokens: 0.025
+      output_price_per_1m_tokens: 2
+    config: {}
+
+  OPENAI/gpt-5:
+    internal_model_id: gpt-5
+    max_tokens: 1047576
+    max_output_tokens: 32768
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    price:
+      input_price_per_1m_tokens: 1.25
+      cached_input_price_per_1m_tokens: 0.125
+      output_price_per_1m_tokens: 10
+    config: {}
+
   OPENAI/o4-mini:
     internal_model_id: o4-mini
     max_tokens: 200000
