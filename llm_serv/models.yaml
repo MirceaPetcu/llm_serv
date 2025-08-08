@@ -193,4 +193,30 @@ MODELS:
       document_support: true
       structured_output: true
     config: {}
+
+  OPENAI/text-embedding-3-small:
+    internal_model_id: text-embedding-3-small
+    max_tokens: 8192
+    max_output_tokens: 0
+    capabilities:
+      embedding: true
+    price:
+      input_price_per_1m_tokens: 0.02
+      cached_input_price_per_1m_tokens: 0
+      output_price_per_1m_tokens: 0
+      reasoning_output_price_per_1m_tokens: 0
+    config: {}
+
+  OPENAI/text-embedding-3-large:
+    internal_model_id: text-embedding-3-large
+    max_tokens: 8192
+    max_output_tokens: 0
+    capabilities:
+      embedding: true
+    price:
+      input_price_per_1m_tokens: 0.13
+      cached_input_price_per_1m_tokens: 0
+      output_price_per_1m_tokens: 0
+      reasoning_output_price_per_1m_tokens: 0
+    config: {}
   

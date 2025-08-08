@@ -112,7 +112,12 @@ class AzureOpenAILLMProvider(LLMProvider):
             output = api_response.choices[0].message.content
             tokens = ModelTokens(
                 input_tokens=api_response.usage.prompt_tokens,
-                output_tokens=api_response.usage.completion_tokens
+                output_tokens=api_response.usage.completion_tokens,
+                # Store current price rates for historical accuracy
+                input_price_per_1m_tokens=self.model.input_price_per_1m_tokens,
+                cached_input_price_per_1m_tokens=self.model.cached_input_price_per_1m_tokens,
+                output_price_per_1m_tokens=self.model.output_price_per_1m_tokens,
+                reasoning_output_price_per_1m_tokens=self.model.reasoning_output_price_per_1m_tokens,
             )
 
             return output, tokens

@@ -210,6 +210,11 @@ class OpenAILLMProvider(LLMProvider):
                 output_tokens=api_response.usage.completion_tokens,
                 #reasoning_output_tokens=api_response.usage.output_tokens_details.reasoning_tokens,
                 total_tokens=api_response.usage.total_tokens,
+                # Store current price rates for historical accuracy
+                input_price_per_1m_tokens=self.model.input_price_per_1m_tokens,
+                cached_input_price_per_1m_tokens=self.model.cached_input_price_per_1m_tokens,
+                output_price_per_1m_tokens=self.model.output_price_per_1m_tokens,
+                reasoning_output_price_per_1m_tokens=self.model.reasoning_output_price_per_1m_tokens,
             )
 
         except Exception as e:
