@@ -3,7 +3,7 @@
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
-    "configurations": [    
+    "configurations": [
         {
             "name": "Python: Current File (llm_serv)",
             "type": "debugpy",
@@ -11,14 +11,22 @@
             "program": "${file}",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
-            "envFile": "${workspaceFolder}/.env"
-        },          
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"
+            }
+        },
         {
-            "name": "Start Server",
-            "type": "python",
+            "name": "Start Server (module)",
+            "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/llm_serv/server.py",
-            "cwd": "${workspaceFolder}/llm_serv"
+            "module": "llm_serv.server",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"
+            }
         }
     ]
 }

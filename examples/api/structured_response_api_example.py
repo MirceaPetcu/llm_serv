@@ -38,7 +38,7 @@ class WeatherPrognosis(StructuredResponse):
 
 
 async def main():
-    model = LLMService.get_model("AWS/claude-3-haiku")
+    model = LLMService.get_model("OPENAI/gpt-5-mini")
     llm_service = LLMService.get_provider(model)
 
     input_text = """
@@ -53,7 +53,7 @@ async def main():
     {input_text}
 
     Here is the structured response:
-    {WeatherPrognosis.to_text()}
+    {StructuredResponse.from_basemodel(WeatherPrognosis).to_prompt()}
     """
 
     print(prompt)

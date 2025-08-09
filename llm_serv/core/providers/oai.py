@@ -20,7 +20,7 @@ from llm_serv.core.exceptions import (CredentialsException,
                                       InternalConversionException,
                                       ServiceCallException,
                                       ServiceCallThrottlingException)
-from llm_serv.structured_response.model import StructuredResponse
+from llm_serv.structured_response_old.model import StructuredResponse
 
 
 
@@ -235,7 +235,7 @@ if __name__ == "__main__":
 
     from llm_serv import LLMService
     from llm_serv.conversation.role import Role
-    from llm_serv.structured_response.model import StructuredResponse
+    from llm_serv.structured_response_old.model import StructuredResponse
 
     async def test_openai():
         model = LLMService.get_model("OPENAI/o4-mini")

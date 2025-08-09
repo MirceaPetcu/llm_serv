@@ -12,7 +12,7 @@ from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
 from llm_serv.core.components.tokens import ModelTokens
 from llm_serv.core.exceptions import CredentialsException, ServiceCallException
-from llm_serv.structured_response.model import StructuredResponse
+from llm_serv.structured_response_old.model import StructuredResponse
 
 class AzureOpenAILLMProvider(LLMProvider):
     @staticmethod
@@ -137,7 +137,7 @@ if __name__ == "__main__":
 
     from llm_serv import LLMService
     from llm_serv.conversation.role import Role
-    from llm_serv.structured_response.model import StructuredResponse
+    from llm_serv.structured_response_old.model import StructuredResponse
 
     async def test_azure():
         model: Model = LLMService.get_model("AZURE/gpt-4.1-mini")

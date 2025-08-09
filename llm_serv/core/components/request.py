@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, PlainSerializer, Field, field_valida
 
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.core.components.types import LLMRequestType
-from llm_serv.structured_response.model import StructuredResponse
+from llm_serv.structured_response_old.model import StructuredResponse
 
 
 class LLMRequest(BaseModel):

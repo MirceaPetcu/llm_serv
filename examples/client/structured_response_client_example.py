@@ -5,7 +5,7 @@ from pydantic import Field
 from rich import print as rprint
 
 from llm_serv import LLMServiceClient, Conversation, LLMRequest
-from llm_serv.structured_response.model import StructuredResponse
+from llm_serv.structured_response_old.model import StructuredResponse
 
 
 class ChanceScale(Enum):

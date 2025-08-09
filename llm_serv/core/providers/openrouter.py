@@ -186,7 +186,7 @@ class OpenRouterLLMProvider(LLMProvider):
 
 if __name__ == "__main__":
     from llm_serv import LLMService
-    from llm_serv.structured_response.model import StructuredResponse
+    from llm_serv.structured_response_old.model import StructuredResponse
 
     async def test_openrouter():
         """Test function for OpenRouterLLMProvider"""
