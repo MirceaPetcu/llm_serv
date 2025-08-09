@@ -41,6 +41,8 @@ async def main():
     model = LLMService.get_model("OPENAI/gpt-5-mini")
     llm_service = LLMService.get_provider(model)
 
+    response_model = StructuredResponse.from_basemodel(WeatherPrognosis)
+
     input_text = """
     The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
     We expect a high of 15°C and a low of 5°C. The UV index is moderate.
@@ -53,7 +55,7 @@ async def main():
     {input_text}
 
     Here is the structured response:
-    {StructuredResponse.from_basemodel(WeatherPrognosis).to_prompt()}
+    {response_model.to_prompt()}
     """
 
     print(prompt)
@@ -61,8 +63,7 @@ async def main():
     conversation = Conversation.from_prompt(prompt)
     request = LLMRequest(
         conversation=conversation,
-        response_model=WeatherPrognosis,        
-        max_completion_tokens=4000
+        response_model=response_model
     )
 
     # Use await for async service call

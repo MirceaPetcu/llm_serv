@@ -5,7 +5,7 @@ from pydantic import Field
 from rich import print as rprint
 
 from llm_serv import LLMServiceClient, Conversation, LLMRequest
-from llm_serv.structured_response_old.model import StructuredResponse
+from llm_serv.structured_response.model import StructuredResponse
 
 
 class ChanceScale(Enum):
@@ -40,6 +40,9 @@ async def main():
     # Initialize the client
     client = LLMServiceClient(host="localhost", port=9999, timeout=20.0)
 
+    # Create the response model
+    response_model = StructuredResponse.from_basemodel(WeatherPrognosis)
+
     # Set the model to use
     client.set_model("OPENAI/gpt-4.1-mini")
 
@@ -50,7 +53,7 @@ async def main():
     {input_text}
 
     Here is the structured response:
-    {WeatherPrognosis.to_text()}
+    {response_model.to_prompt()}
     """
 
     print(prompt)
@@ -58,7 +61,7 @@ async def main():
     conversation = Conversation.from_prompt(prompt)
     request = LLMRequest(
         conversation=conversation,
-        response_model=WeatherPrognosis,
+        response_model=response_model,
         max_completion_tokens=4000,
     )
 

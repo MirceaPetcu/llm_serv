@@ -186,7 +186,7 @@ class OpenRouterLLMProvider(LLMProvider):
 
 if __name__ == "__main__":
     from llm_serv import LLMService
-    from llm_serv.structured_response_old.model import StructuredResponse
+    from llm_serv.structured_response.model import StructuredResponse
 
     async def test_openrouter():
         """Test function for OpenRouterLLMProvider"""
@@ -205,15 +205,16 @@ if __name__ == "__main__":
                 default=0, ge=0.0, le=10.0, description="A float field with a value exactly half of the integer value"
             )
 
+        response_model = StructuredResponse.from_basemodel(MyClass)
         conversation = Conversation.from_prompt("Please fill in the following class respecting the following instructions.")
-        conversation.add_text_message(role=Role.USER, content=MyClass.to_text())
+        conversation.add_text_message(role=Role.USER, content=response_model.to_prompt())
 
-        request = LLMRequest(conversation=conversation, response_model=MyClass)
+        request = LLMRequest(conversation=conversation, response_model=response_model)
 
         response = await llm(request)
         
         print(response)
-        assert isinstance(response.output, MyClass)
+        assert isinstance(response.output, StructuredResponse)
     
         await llm.stop()
 

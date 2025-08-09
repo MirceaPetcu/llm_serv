@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from llm_serv.api import Model
 from llm_serv.core.components.request import LLMRequest
 from llm_serv.core.components.tokens import TokenTracker
-from llm_serv.structured_response_old.model import StructuredResponse
+from llm_serv.structured_response.model import StructuredResponse
 
 
 class LLMResponse(BaseModel):    

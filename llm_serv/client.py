@@ -267,8 +267,8 @@ class LLMServiceClient:
             # Manually convert to StructuredResponse if needed
             if request.response_model is not None and request.response_model is not str:
                 try:
-                    # Assuming response_class has a 'from_text' class method
-                    llm_response.output = request.response_model.from_text(llm_response.output)
+                    # Assuming response_class has a 'from_prompt' class method
+                    llm_response.output = request.response_model.from_prompt(llm_response.output)
                     self.logger.info("Successfully parsed XML structured response client-side.")
                 except Exception as parse_error:
                     self.logger.error(f"Failed to parse XML response client-side: {parse_error}", exc_info=True)

@@ -14,7 +14,7 @@ from llm_serv.core.components.tokens import TokenTracker
 from llm_serv.core.exceptions import CredentialsException, InternalConversionException, ServiceCallException, ServiceCallThrottlingException
 
 from llm_serv.api import Model
-from llm_serv.structured_response_old.model import StructuredResponse
+from llm_serv.structured_response.model import StructuredResponse
 
 def check_credentials() -> None:
     # this provider does not require credentials

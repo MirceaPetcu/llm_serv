@@ -7,7 +7,7 @@ from xml.etree import ElementTree as ET
 import json
 import re
 
-from pydantic import BaseModel
+from pydantic import BaseModel, fields
 
 
 def _unwrap_optional(annotation: Any) -> Any:
@@ -48,6 +48,45 @@ def _python_type_name(annotation: Any) -> str:
     if _is_list(annotation):
         return "list"
     return getattr(annotation, "__name__", str(annotation))
+
+
+def _extract_constraints(field_info: Any) -> dict[str, Any]:
+    constraints: dict[str, Any] = {}
+    if not field_info:
+        return constraints
+    # Direct attributes on FieldInfo (works for non-BaseModel usage too)
+    for attr in ("ge", "gt", "le", "lt", "multiple_of", "min_length", "max_length"):
+        value = getattr(field_info, attr, None)
+        if value is not None:
+            constraints[attr] = value
+    # Pydantic BaseModel field_info may keep constraints in metadata
+    for constraint in getattr(field_info, "metadata", []) or []:
+        for attr in ("ge", "gt", "le", "lt", "multiple_of", "min_length", "max_length"):
+            if hasattr(constraint, attr):
+                value = getattr(constraint, attr)
+                if value is not None and attr not in constraints:
+                    constraints[attr] = value
+    return constraints
+
+
+def _iter_schema_fields(cls: type) -> list[tuple[str, Any, Any]]:
+    """Return (name, annotation, field_info) for a class that may be a BaseModel subclass
+    or a plain class using Field() descriptors."""
+    results: list[tuple[str, Any, Any]] = []
+    if isinstance(cls, type) and issubclass(cls, BaseModel):
+        for name, finfo in cls.model_fields.items():
+            results.append((name, finfo.annotation, finfo))
+        return results
+    # Plain class path: use annotations and attribute value as FieldInfo if present
+    annotations = getattr(cls, "__annotations__", {}) or {}
+    for name, ann in annotations.items():
+        finfo = getattr(cls, name, None)
+        # Only treat FieldInfo-like or None
+        if isinstance(finfo, fields.FieldInfo) or finfo is None:
+            results.append((name, ann, finfo))
+        else:
+            results.append((name, ann, None))
+    return results
 
 
 def _coerce_text_to_type(text: str, type_name: str) -> Any:
@@ -97,7 +136,7 @@ class StructuredResponse:
 
         root_obj = objects_list[0]
         is_instance_input = isinstance(root_obj, BaseModel)
-        root_type: type[BaseModel] = root_obj.__class__ if is_instance_input else root_obj  # type: ignore[assignment]
+        root_type: type = root_obj.__class__ if is_instance_input else root_obj  # type: ignore[assignment]
 
         def build_field_definition(field_annotation: Any, field_info) -> dict | str:
             """Return a definition dict for complex fields or a type string for simple fields."""
@@ -106,38 +145,24 @@ class StructuredResponse:
             # List handling
             if _is_list(ann):
                 elem_ann = _unwrap_optional(_list_arg(ann))
-                if isinstance(elem_ann, type) and issubclass(elem_ann, BaseModel):
+                if isinstance(elem_ann, type) and (issubclass(elem_ann, BaseModel) or hasattr(elem_ann, "__annotations__")):
                     elem_def = {}
-                    for sub_name, sub_info in elem_ann.model_fields.items():
-                        elem_def[sub_name] = build_field_definition(sub_info.annotation, sub_info)
+                    for sub_name, sub_ann, sub_info in _iter_schema_fields(elem_ann):
+                        elem_def[sub_name] = build_field_definition(sub_ann, sub_info)
                     result: dict[str, Any] = {
                         "type": "list",
-                        "description": field_info.description or "",
+                        "description": (getattr(field_info, "description", "") if field_info else ""),
                         "elements_type": elem_def,
                     }
                 else:
                     result = {
                         "type": "list",
-                        "description": field_info.description or "",
+                        "description": (getattr(field_info, "description", "") if field_info else ""),
                         "elements_type": _python_type_name(elem_ann),
                     }
-
-                # Constraints from metadata (if any)
-                if hasattr(field_info, "metadata"):
-                    for constraint in getattr(field_info, "metadata", []) or []:
-                        for attr, key in (
-                            ("ge", "ge"),
-                            ("gt", "gt"),
-                            ("le", "le"),
-                            ("lt", "lt"),
-                            ("multiple_of", "multiple_of"),
-                            ("min_length", "min_length"),
-                            ("max_length", "max_length"),
-                        ):
-                            if hasattr(constraint, attr):
-                                value = getattr(constraint, attr)
-                                if value is not None:
-                                    result[key] = value
+                # Constraints
+                for k, v in _extract_constraints(field_info).items():
+                    result[k] = v
                 return result
 
             # Enum
@@ -145,43 +170,30 @@ class StructuredResponse:
                 return {
                     "type": "enum",
                     "choices": [e.value for e in ann],
-                    "description": field_info.description or "",
+                    "description": (getattr(field_info, "description", "") if field_info else ""),
                 }
 
             # Nested BaseModel
-            if isinstance(ann, type) and issubclass(ann, BaseModel):
+            if isinstance(ann, type) and (issubclass(ann, BaseModel) or hasattr(ann, "__annotations__")):
                 nested: dict[str, Any] = {}
-                for sub_name, sub_info in ann.model_fields.items():
-                    nested[sub_name] = build_field_definition(sub_info.annotation, sub_info)
+                for sub_name, sub_ann, sub_info in _iter_schema_fields(ann):
+                    nested[sub_name] = build_field_definition(sub_ann, sub_info)
                 return nested
 
             # Primitive
             field_def: dict[str, Any] = {
                 "type": _python_type_name(ann),
-                "description": field_info.description or "",
+                "description": (getattr(field_info, "description", "") if field_info else ""),
             }
 
             # Constraints
-            if hasattr(field_info, "metadata"):
-                for constraint in getattr(field_info, "metadata", []) or []:
-                    for attr, key in (
-                        ("ge", "ge"),
-                        ("gt", "gt"),
-                        ("le", "le"),
-                        ("lt", "lt"),
-                        ("multiple_of", "multiple_of"),
-                        ("min_length", "min_length"),
-                        ("max_length", "max_length"),
-                    ):
-                        if hasattr(constraint, attr):
-                            value = getattr(constraint, attr)
-                            if value is not None:
-                                field_def[key] = value
+            for k, v in _extract_constraints(field_info).items():
+                field_def[k] = v
             return field_def
 
         definition: dict[str, Any] = {}
-        for field_name, field_info in root_type.model_fields.items():
-            definition[field_name] = build_field_definition(field_info.annotation, field_info)
+        for field_name, field_ann, field_info in _iter_schema_fields(root_type):
+            definition[field_name] = build_field_definition(field_ann, field_info)
 
         resp = StructuredResponse(
             class_name=root_type.__name__,
@@ -293,6 +305,7 @@ class StructuredResponse:
                 self.instance[field_name] = None
                 continue
             self.instance[field_name] = parse_element(child, schema)
+        assert self.instance is not None
 
     def to_prompt(self) -> str:
         """

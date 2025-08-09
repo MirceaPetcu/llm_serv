@@ -134,7 +134,8 @@ class LLMProvider(abc.ABC):
             """
             if request.response_model is not None:
                 try:
-                    response.output = request.response_model.from_text(output)
+                    request.response_model.from_prompt(output)
+                    response.output = request.response_model
                 except Exception as conversion_error:
                     # Wrap potential conversion errors in a specific exception type
                     raise StructuredResponseException(f"Failed to convert LLM output to structured format: {conversion_error}") from conversion_error
