@@ -128,7 +128,7 @@ def response_from_xml(xml: str, return_class: Type[BaseModel], is_root: bool = T
             if root_tag_name == "Structured Response":
                 root_tag_name = return_class.__name__
             # Normalize the title to match XML tag format using the same method as StructuredResponse
-            from llm_serv.structured_response.model import StructuredResponse
+            from llm_serv.structured_response_old.model import StructuredResponse
             root_tag_name = StructuredResponse._convert_identifier_to_python_identifier(root_tag_name)
             # Also try the class name as fallback
             class_name_lower = return_class.__name__.lower()
@@ -272,7 +272,7 @@ if __name__ == "__main__":
     from enum import Enum
     from typing import Dict, List, Optional, Union
     from pydantic import Field
-    from llm_serv.structured_response.model import StructuredResponse    
+    from llm_serv.structured_response_old.model import StructuredResponse    
 
     class AnEnum(Enum):
         TYPE1 = "type1"

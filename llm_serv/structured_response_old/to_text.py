@@ -179,7 +179,7 @@ def response_to_xml(object: Type[BaseModel], exclude_fields: list[str] = []) -> 
             if title == "Structured Response":
                 title = object.__name__
             # Normalize the title using the same method as StructuredResponse
-            from llm_serv.structured_response.model import StructuredResponse
+            from llm_serv.structured_response_old.model import StructuredResponse
             tag_name = StructuredResponse._convert_identifier_to_python_identifier(title)
         else:
             tag_name = object.__name__.lower()
@@ -438,7 +438,7 @@ def instance_to_xml(instance: BaseModel, exclude_none: bool = False, exclude: se
         if title == "Structured Response":
             title = instance.__class__.__name__
         # Normalize the title using the same method as StructuredResponse
-        from llm_serv.structured_response.model import StructuredResponse
+        from llm_serv.structured_response_old.model import StructuredResponse
         tag_name = StructuredResponse._convert_identifier_to_python_identifier(title)
     else:
         tag_name = instance.__class__.__name__.lower()

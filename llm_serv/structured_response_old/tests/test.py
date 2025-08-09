@@ -8,7 +8,7 @@ from rich import print as rprint
 from typing import Dict, List, Optional
 from pydantic import Field
 
-from llm_serv.structured_response.model import StructuredResponse
+from llm_serv.structured_response_old.model import StructuredResponse
 
 
 class AnEnum(Enum):
