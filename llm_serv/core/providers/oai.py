@@ -10,19 +10,12 @@ from pydantic import Field
 
 from llm_serv.api import Model
 from llm_serv.conversation.conversation import Conversation
-from llm_serv.conversation.image import Image
-from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
 from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
-from llm_serv.core.components.tokens import ModelTokens, TokenTracker
-from llm_serv.core.exceptions import (CredentialsException,
-                                      InternalConversionException,
-                                      ServiceCallException,
-                                      ServiceCallThrottlingException)
+from llm_serv.core.components.tokens import ModelTokens
+from llm_serv.core.exceptions import CredentialsException, InternalConversionException, ServiceCallException, ServiceCallThrottlingException
 from llm_serv.structured_response.model import StructuredResponse
-
-
 
 
 class OpenAILLMProvider(LLMProvider):
@@ -164,7 +157,7 @@ class OpenAILLMProvider(LLMProvider):
         """
         
         config = {
-            "max_completion_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,
+            "max_completion_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,  # noqa: E501
             "temperature": request.temperature,
             "top_p": request.top_p,
             "response_format": ({"type": "text"})
@@ -223,7 +216,7 @@ class OpenAILLMProvider(LLMProvider):
             
             # TODO: handle other error codes properly here
             
-            raise ServiceCallException(f"OpenAI service error: {str(e)}")
+            raise ServiceCallException(f"OpenAI service error: {str(e)}") from e
 
         return output, tokens
 

@@ -54,7 +54,7 @@ async def test_model(client: LLMServiceClient, model_id: str, timeout: float = 3
         result.success = True
         result.response = response
         
-    except TimeoutException as e:
+    except TimeoutException:
         result.error_message = f"Timeout after {timeout} seconds"
     except ServiceCallException as e:
         result.error_message = str(e)
@@ -127,7 +127,7 @@ async def main():
     
     # Print statistics
     successful = sum(1 for r in results if r.success)
-    console.print(f"\n[bold]Statistics:[/bold]")
+    console.print("\n[bold]Statistics:[/bold]")
     console.print(f"Total models tested: {len(results)}")
     console.print(f"Successful: [green]{successful}[/green]")
     console.print(f"Failed: [red]{len(results) - successful}[/red]")

@@ -55,7 +55,7 @@ class LLMResponse(BaseModel):
                         # Try to convert to dict if it has a dict method
                         if hasattr(obj, "__dict__"):
                             return obj.__dict__
-                    except:
+                    except:  # noqa: E722
                         pass
                     # Let the base class handle it or raise TypeError
                     return super().default(obj)
@@ -65,7 +65,7 @@ class LLMResponse(BaseModel):
             
             # Add system message if present
             if self.request.conversation.system:
-                content_parts.append(f"[bold dark_magenta][SYSTEM][/bold dark_magenta] [dark_magenta]{self.request.conversation.system}[/dark_magenta]")
+                content_parts.append(f"[bold dark_magenta][SYSTEM][/bold dark_magenta] [dark_magenta]{self.request.conversation.system}[/dark_magenta]")  # noqa: E501
             
             # Process conversation messages
             for message in self.request.conversation.messages:
@@ -75,16 +75,13 @@ class LLMResponse(BaseModel):
                     content_parts.append(f"[bold dark_green][ASSISTANT][/bold dark_green] [dark_green]{message.text}[/dark_green]")
 
             # Add the final output
-            content_parts.append(f"[bold bright_green][ASSISTANT - OUTPUT][/bold bright_green]")
+            content_parts.append("[bold bright_green][ASSISTANT - OUTPUT][/bold bright_green]")
             if isinstance(self.output, str):
                 content_parts.append(f"[bright_green]{self.output}[/bright_green]")
             else:
                 try:
                     # First convert the data to a JSON-serializable format using our custom encoder
-                    if hasattr(self.output, "model_dump"):
-                        data = self.output.model_dump(exclude_none=True)
-                    else:
-                        data = self.output
+                    data = str(self.output)
                         
                     # Convert to JSON string with our custom encoder that handles Enums
                     json_str = json.dumps(data, indent=2, cls=EnhancedJSONEncoder)
@@ -100,50 +97,63 @@ class LLMResponse(BaseModel):
                     # Add the captured output to our content
                     content_parts.append(capture.get())
                     content_parts.append("[/bright_green]")
-                except Exception as e:
-                    content_parts.append(f"[bright_red]Error serializing output: {str(e)}[/bright_red]")
+                except Exception as exc:
+                    content_parts.append(f"[bright_red]Error serializing output: {str(exc)}[/bright_red]")
                     content_parts.append(f"[bright_red]Output type: {type(self.output)}[/bright_red]")
 
             # Create panel title (stats line)
             title = ""
             if self.tokens:
                 model_str = f"LLMRequest: {self.llm_model.provider.name}/{self.llm_model.name}"
-                title = f"{model_str} | Time: {self.total_duration:.2f}s | Input/Output tokens: {self.tokens.input_tokens}/{self.tokens.completion_tokens} | Total tokens: {self.tokens.total_tokens}"
+                title = f"{model_str} | Time: {self.total_duration:.2f}s | Input/Output tokens: {self.tokens.input_tokens}/{self.tokens.completion_tokens} | Total tokens: {self.tokens.total_tokens}"  # noqa: E501
 
             # Print single panel with all content
-            console.print(Panel(
-                "\n".join(content_parts),
-                title=title,
-                title_align="right",
-                border_style="magenta",
-                subtitle=subtitle,
-                subtitle_align="left"
-            ))
+            console.print(
+                Panel(
+                    "\n".join(content_parts),
+                    title=title,
+                    title_align="right",
+                    border_style="magenta",
+                    subtitle=subtitle,
+                    subtitle_align="left",
+                )
+            )
         except Exception as e:
             # Fallback to basic printing if rich formatting fails
             try:
                 from rich import print as rprint
                 rprint(f"[bold red]Error in rprint method: {str(e)}[/bold red]")
                 rprint("[yellow]Falling back to basic output:[/yellow]")
-                
+
                 # Print basic conversation info
-                if hasattr(self, "request") and self.request and hasattr(self.request, "conversation"):
-                    if hasattr(self.request.conversation, "system") and self.request.conversation.system:
-                        rprint(f"[dark_magenta]System: {self.request.conversation.system}[/dark_magenta]")
-                    
+                if (
+                    hasattr(self, "request")
+                    and self.request
+                    and hasattr(self.request, "conversation")
+                ):
+                    if (
+                        hasattr(self.request.conversation, "system")
+                        and self.request.conversation.system
+                    ):
+                        rprint(
+                            f"[dark_magenta]System: {self.request.conversation.system}[/dark_magenta]"
+                        )
+
                     if hasattr(self.request.conversation, "messages"):
                         for msg in self.request.conversation.messages:
                             role = getattr(msg, "role", "unknown")
                             text = getattr(msg, "text", "no text")
                             rprint(f"[blue]{role}: {text}[/blue]")
-                
+
                 # Print output
                 if hasattr(self, "output"):
                     rprint(f"[green]Output: {self.output}[/green]")
-                    
+
                 # Print token info
                 if hasattr(self, "tokens") and self.tokens:
-                    rprint(f"[cyan]Tokens: {self.tokens.total_tokens} (Input: {self.tokens.input_tokens}, Output: {self.tokens.completion_tokens})[/cyan]")
+                    rprint(
+                        f"[cyan]Tokens: {self.tokens.total_tokens} (Input: {self.tokens.input_tokens}, Output: {self.tokens.completion_tokens})[/cyan]"  # noqa: E501
+                    )
             except Exception as inner_e:
                 # Last resort: plain print without any formatting
                 print(f"Error in rprint fallback: {str(inner_e)}")

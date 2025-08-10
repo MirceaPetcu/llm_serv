@@ -130,7 +130,7 @@ class LLMServiceClient:
         
         except httpx.RequestError as e:
             self.logger.error(f"Failed to connect to server for list_models: {str(e)}", exc_info=True)
-            raise ServiceCallException(f"Failed to connect to server: {str(e)}")
+            raise ServiceCallException(f"Failed to connect to server: {str(e)}") from e
 
     async def list_providers(self) -> list[str]:
         """
@@ -160,7 +160,7 @@ class LLMServiceClient:
             return sorted(provider_names)
         except httpx.RequestError as e:
             self.logger.error(f"Failed to connect to server for list_providers: {str(e)}", exc_info=True)
-            raise ServiceCallException(f"Failed to connect to server: {str(e)}")
+            raise ServiceCallException(f"Failed to connect to server: {str(e)}") from e
     
     def set_model(self, model_id: str):
         """
@@ -257,22 +257,12 @@ class LLMServiceClient:
                 except ValueError: # Handle cases where response is not valid JSON
                     error_msg = f"Chat request failed with status {response.status_code} and non-JSON response: {response.text}"
                     self.logger.error(error_msg)
-                    raise ServiceCallException(error_msg)
+                    raise ServiceCallException(error_msg) from None
 
 
             llm_response_as_json = response.json()
             llm_response = LLMResponse.model_validate(llm_response_as_json)
             self.logger.info(f"Chat request successful for model {self.model_id}")
-
-            # Manually convert to StructuredResponse if needed
-            if request.response_model is not None and request.response_model is not str:
-                try:
-                    # Assuming response_class has a 'from_prompt' class method
-                    llm_response.output = request.response_model.from_prompt(llm_response.output)
-                    self.logger.info("Successfully parsed XML structured response client-side.")
-                except Exception as parse_error:
-                    self.logger.error(f"Failed to parse XML response client-side: {parse_error}", exc_info=True)
-                    raise StructuredResponseException(f"Failed to parse XML response client-side: {parse_error}") from parse_error
 
             return llm_response
 
@@ -289,5 +279,5 @@ class LLMServiceClient:
             if isinstance(e, httpx.ReadTimeout):
                 timeout_seconds = request_timeout.read if hasattr(request_timeout, 'read') else request_timeout
                 raise TimeoutException(f"Read timeout after {timeout_seconds:.1f} seconds for {url}") from e
-            raise ServiceCallException(f"Failed to connect to server: {str(e)}")
+            raise ServiceCallException(f"Failed to connect to server: {str(e)}") from e
         

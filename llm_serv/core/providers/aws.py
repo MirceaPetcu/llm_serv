@@ -1,6 +1,5 @@
 import asyncio
 import os
-import time
 
 import aioboto3
 from pydantic import Field
@@ -11,12 +10,8 @@ from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.role import Role
 from llm_serv.core.base import LLMProvider
 from llm_serv.core.components.request import LLMRequest
-from llm_serv.core.components.response import LLMResponse
 from llm_serv.core.components.tokens import ModelTokens
-from llm_serv.core.exceptions import (CredentialsException,
-                                      InternalConversionException,
-                                      ServiceCallException,
-                                      ServiceCallThrottlingException)
+from llm_serv.core.exceptions import CredentialsException, InternalConversionException, ServiceCallException, ServiceCallThrottlingException
 from llm_serv.structured_response.model import StructuredResponse
 
 
@@ -98,7 +93,7 @@ class AWSLLMProvider(LLMProvider):
                             },
 
 
-        You can include up to 20 images. Each image's size, height, and width must be no more than 3.75 MB, 8000 px, and 8000 px, respectively.
+        You can include up to 20 images. Each image's size, height, and width must be no more than 3.75 MB, 8000 px, and 8000 px, respective
         You can include up to five documents. Each document's size must be no more than 4.5 MB.
         If you include a ContentBlock with a document field in the array, you must also include a ContentBlock with a text field.
         You can only include images and documents if the role is user.
@@ -234,26 +229,26 @@ class AWSLLMProvider(LLMProvider):
                 error_msg = str(e)
 
                 if status_code == 400:
-                    raise ServiceCallException(f"ValidationException: The input fails to satisfy Bedrock constraints: {error_msg}")
+                    raise ServiceCallException(f"ValidationException: The input fails to satisfy Bedrock constraints: {error_msg}") from e
                 elif status_code == 403:
-                    raise ServiceCallException(f"AccessDeniedException: Insufficient permissions to perform this action: {error_msg}")
+                    raise ServiceCallException(f"AccessDeniedException: Insufficient permissions to perform this action: {error_msg}") from e  # noqa: E501
                 elif status_code == 404:
-                    raise ServiceCallException(f"ResourceNotFoundException: The specified model was not found: {error_msg}")
+                    raise ServiceCallException(f"ResourceNotFoundException: The specified model was not found: {error_msg}") from e
                 elif status_code == 408:
-                    raise ServiceCallException(f"ModelTimeoutException: The request took too long to process: {error_msg}")
+                    raise ServiceCallException(f"ModelTimeoutException: The request took too long to process: {error_msg}") from e
                 elif status_code == 424:
-                    raise ServiceCallException(f"ModelErrorException: The request failed due to a model processing error: {error_msg}")
+                    raise ServiceCallException(f"ModelErrorException: The request failed due to a model processing error: {error_msg}") from e  # noqa: E501
                 elif status_code == 429:
                     # Let the base class handle the retries for throttling exceptions
                     raise ServiceCallThrottlingException(
-                        f"ThrottlingException: Request denied due to exceeding account quotas"
-                    )
+                        "ThrottlingException: Request denied due to exceeding account quotas"
+                    ) from e
                 elif status_code == 500:
-                    raise ServiceCallException(f"InternalServerException: An internal server error occurred: {error_msg}")
+                    raise ServiceCallException(f"InternalServerException: An internal server error occurred: {error_msg}") from e
                 elif status_code == 503:
-                    raise ServiceCallException(f"ServiceUnavailableException: The service is currently unavailable: {error_msg}")
+                    raise ServiceCallException(f"ServiceUnavailableException: The service is currently unavailable: {error_msg}") from e
 
-            raise ServiceCallException(f"Unexpected AWS service error: {str(e)}")
+            raise ServiceCallException(f"Unexpected AWS service error: {str(e)}") from e
 
 
 if __name__ == "__main__":

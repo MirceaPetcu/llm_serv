@@ -1,8 +1,6 @@
 import os
-import json
 import pytest
 import tempfile
-import requests
 from pathlib import Path
 from llm_serv.conversation.document import Document
 

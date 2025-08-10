@@ -46,7 +46,7 @@ async def main():
     input_text = """
     The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
     We expect a high of 15°C and a low of 5°C. The UV index is moderate.
-    """
+    """  # noqa: E501
 
     prompt = f"""
     You are a weather expert. You are given a weather forecast for a specific location.

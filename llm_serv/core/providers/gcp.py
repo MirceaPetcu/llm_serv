@@ -1,4 +1,5 @@
 import os
+
 from google import genai
 
 from llm_serv.api import Model
@@ -119,7 +120,7 @@ class GoogleLLMProvider(LLMProvider):
 
             # Configuration for the generation
             config = {
-                "max_output_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,
+                "max_output_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,  # noqa: E501
                 "temperature": request.temperature,
                 "top_p": request.top_p,
             }
@@ -203,7 +204,9 @@ class GoogleLLMProvider(LLMProvider):
 
 if __name__ == "__main__":
     import asyncio
+
     from pydantic import Field
+
     from llm_serv import LLMService
     from llm_serv.conversation.conversation import Conversation
     from llm_serv.conversation.role import Role

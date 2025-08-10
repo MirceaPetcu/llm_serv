@@ -14,6 +14,7 @@ from llm_serv.core.exceptions import (InternalConversionException,
                                       ServiceCallThrottlingException,
                                       StructuredResponseException)
 from llm_serv.api import Model
+from llm_serv.structured_response.model import StructuredResponse
 
 # Create a module-specific logger
 module_logger = logger.getChild("core.base")
@@ -25,13 +26,13 @@ class LLMProvider(abc.ABC):
         self.logger = module_logger
         self.logger.info(f"Initializing LLM provider for model: \033[94m{model.id}\033[0m [\033[93m{model.internal_model_id}\033[0m]")
 
-    async def start(self):
+    async def start(self):  # noqa: B027
         """
         Initialize the provider's internal async client.
         """
         pass
 
-    async def stop(self):
+    async def stop(self):  # noqa: B027
         """
         Clean up the provider's internal async client.
         """
@@ -132,13 +133,15 @@ class LLMProvider(abc.ABC):
             attempt to convert the text output to the desired StructuredResponse class.
             Raises StructuredResponseException if the conversion fails.
             """
-            if request.response_model is not None:
+            if isinstance(request.response_model, StructuredResponse):
                 try:
                     request.response_model.from_prompt(output)
                     response.output = request.response_model
                 except Exception as conversion_error:
                     # Wrap potential conversion errors in a specific exception type
-                    raise StructuredResponseException(f"Failed to convert LLM output to structured format: {conversion_error}") from conversion_error
+                    raise StructuredResponseException(
+                        f"Failed to convert LLM output to structured format: {conversion_error}"
+                    ) from conversion_error
 
             response.tokens.add(self.model.id, model_tokens)
 
@@ -148,7 +151,7 @@ class LLMProvider(abc.ABC):
 
             return response
 
-        except (InternalConversionException, StructuredResponseException, ServiceCallThrottlingException) as e:
+        except (InternalConversionException, StructuredResponseException, ServiceCallThrottlingException):
             # Re-raise specific exceptions that are handled or expected (including the final one from the wrapper)
             raise
         except Exception as e:

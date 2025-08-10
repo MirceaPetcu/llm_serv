@@ -35,7 +35,7 @@ async def main():
     input_text = """
     The temperature today in Annecy is 10°C. There is a 80% chance of rain in the morning and 20% chance of rain in the afternoon. Winds will be from the south at 5 km/h.
     We expect a high of 15°C and a low of 5°C.
-    """
+    """  # noqa: E501
 
     # Initialize the client
     client = LLMServiceClient(host="localhost", port=9999, timeout=20.0)
@@ -71,7 +71,13 @@ async def main():
     rprint(response.output)
 
     print(f"Output type: {type(response.output)}")
-    assert isinstance(response.output, WeatherPrognosis)
+    assert isinstance(response.output, StructuredResponse)
+
+    print("\nXML print:")
+    print(str(response.output))
+
+    print("\nInstance dict:")
+    rprint(response.output.instance)
 
     rprint("Token Usage:", response.tokens)
 
