@@ -155,3 +155,41 @@ The internal dict with instance data will be filled like:
 The from_prompt method searches the llm response string to find the start and end tags (left and right find), then parses the valid XML to extract all instance data an populate the internal dictionary. 
 
 Finally, we'll use the serialize and deserialize methods to serialize and deserialize instances to and from strings. As the internal components are dicts, the serialization and deserialization is straight-forward. 
+
+
+Calling str(response) will invoke the __str__ method which will output the instance data as simple XML:
+
+```xml
+<weather_prognosis>
+    <location>Annecy, FR</location>
+    <current_temperature>18.7</current_temperature>
+    <rain_probability>
+        <li>
+            <chance>low</chance>
+            <when>morning</when>
+        </li>
+        <li>
+            <chance>medium</chance>
+            <when>afternoon</when>
+        </li>
+        <li>
+            <chance>high</chance>
+            <when>evening</when>
+        </li>
+    </rain_probability>
+    <hourly_index>
+        <li>3</li>
+        <li>4</li>
+        <li>5</li>
+        <li>6</li>
+        <li>5</li>
+        <li>4</li>
+        <li>3</li>
+        <li>2</li>
+    </hourly_index>
+    <wind_speed>12.5</wind_speed>
+    <high>24.0</high>
+    <low>12.0</low>
+    <storm_tonight>false</storm_tonight>
+</weather_prognosis>
+```

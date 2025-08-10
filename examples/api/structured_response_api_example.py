@@ -80,10 +80,10 @@ async def main():
     print("\nRich print:")
     response.rprint()
 
-    print("\nJSON print:")
+    print("\nXML print:")
     print(f"{response.output}")
 
-    llm_service.stop()
+    await llm_service.stop()
 
 
 if __name__ == "__main__":
