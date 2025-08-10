@@ -138,7 +138,7 @@ if __name__ == "__main__":
     from llm_serv.structured_response.model import StructuredResponse
 
     async def test_azure():
-        model: Model = LLMService.get_model("AZURE/gpt-4.1-mini")
+        model: Model = LLMService.get_model("AZURE/gpt-5-mini")
         llm = AzureOpenAILLMProvider(model)
 
         class MyClass(StructuredResponse):

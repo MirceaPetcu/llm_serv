@@ -56,7 +56,7 @@ async def main():
 
     # Check if we have the necessary credentials
     provider = "OPENAI"
-    model_name = "gpt-4.1-mini"
+    model_name = "gpt-5-mini"
     model_id = f"{provider}/{model_name}"
     
     # Check OpenAI API key

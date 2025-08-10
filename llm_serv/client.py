@@ -103,8 +103,8 @@ class LLMServiceClient:
             list[str]: List of models as model_id strings.
             Example:
             [
-                "AZURE_OPENAI/gpt-4.1-mini",
-                "OPENAI/gpt-4.1-mini",
+                "AZURE_OPENAI/gpt-5-mini",
+                "OPENAI/gpt-5-mini",
                 "AWS/claude-3-haiku",
             ]
 

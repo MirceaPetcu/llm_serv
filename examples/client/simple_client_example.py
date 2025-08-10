@@ -61,7 +61,7 @@ async def main():
 
     # 5. Set the model to use
     # Updated to use the new API with model_id in format "provider/name"
-    client.set_model("OPENAI/gpt-4.1-mini")    
+    client.set_model("OPENAI/gpt-5-mini")    
     print("Model set to:", client.model_id)
 
     # 6. Create and send a chat request

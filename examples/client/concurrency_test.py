@@ -1,6 +1,6 @@
 """
 This script tests concurrent requests to the LLM service.
-It sends 10 concurrent queries to the OpenAI GPT-4.1-mini model
+It sends 10 concurrent queries to the OpenAI gpt-5-mini model
 and measures the timing performance.
 
 To use this script:
@@ -89,7 +89,7 @@ async def main():
     query_tasks = []
     for i in range(NUM_CONCURRENT_QUERIES):
         client = LLMServiceClient(host="localhost", port=9999, timeout=TIMEOUT)
-        #client.set_model(provider="OPENAI", name="gpt-4.1-mini")
+        #client.set_model(provider="OPENAI", name="gpt-5-mini")
         client.set_model("AWS/claude-3-haiku")
         query_tasks.append(run_query(client, i+1, TIMEOUT))
     

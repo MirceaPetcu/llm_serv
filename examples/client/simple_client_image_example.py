@@ -13,7 +13,7 @@ async def main():
 
     # 2. Set the model to use    
     #client.set_model("OPENROUTER/llama-4-maverick-free")    
-    client.set_model("OPENAI/gpt-4.1-mini")    
+    client.set_model("OPENAI/gpt-5-mini")    
     print("Model set to:", client.model_id)
 
     # let's load an image

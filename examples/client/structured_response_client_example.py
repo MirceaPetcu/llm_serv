@@ -44,7 +44,7 @@ async def main():
     response_model = StructuredResponse.from_basemodel(WeatherPrognosis)
 
     # Set the model to use
-    client.set_model("OPENAI/gpt-4.1-mini")
+    client.set_model("OPENAI/gpt-5-mini")
 
     prompt = f"""
     You are a weather expert. You are given a weather forecast for a specific location.
