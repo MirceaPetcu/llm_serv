@@ -17,7 +17,7 @@ class ChanceScale(Enum):
 class RainProbability(StructuredResponse):
     chance: ChanceScale = Field(description="The chance of rain, where low is less than 25% and high is more than 75%")
     when: str = Field(description="The time of day when the rain is or is not expected")
-
+    exact_mm_ammount: list[str] = Field(description="The exact amount of rain in mm for a 3-hour period estimation, estimation per hour, should have exactly 3 items")  # noqa: E501
 
 class WeatherPrognosis(StructuredResponse):
     location: str = Field(description="The location of the weather forecast")
