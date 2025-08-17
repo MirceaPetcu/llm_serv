@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from llm_serv.structured_response.converters.from_prompt import from_prompt
@@ -12,7 +11,12 @@ from llm_serv.structured_response.utils import camel_to_snake
 
 
 class StructuredResponse:
-    def __init__(self, class_name: str = "StructuredResponse", definition: dict[str, Any] | None = None, instance: dict[str, Any] | None = None):
+    def __init__(
+        self, 
+        class_name: str = "StructuredResponse", 
+        definition: dict[str, Any] | None = None, 
+        instance: dict[str, Any] | None = None
+    ):
         self.class_name = class_name
         self.definition: dict[str, Any] = definition or {}
         self.instance: dict[str, Any] = instance or {}        
@@ -172,54 +176,3 @@ class StructuredResponse:
 
         lines.append(f"</{root_tag}>")
         return "\n".join(lines)
-
-    def _extract_instance_from_model(self, model: Any) -> dict[str, Any]:
-        """Extract instance data from a BaseModel instance - moved from from_basemodel.py"""
-        from enum import Enum
-        from typing import get_origin, get_args
-        
-        data: dict[str, Any] = {}
-        
-        for field_name, field_info in model.__class__.model_fields.items():
-            value = getattr(model, field_name)
-            annotation = field_info.annotation
-            unwrapped_annotation = self._unwrap_optional_local(annotation)
-            
-            if value is None:
-                data[field_name] = None
-                continue
-            
-            if self._is_list_type_local(unwrapped_annotation):
-                element_type = get_args(unwrapped_annotation)[0] if get_args(unwrapped_annotation) else Any
-                unwrapped_element_type = self._unwrap_optional_local(element_type)
-                
-                if isinstance(unwrapped_element_type, type) and issubclass(unwrapped_element_type, BaseModel):
-                    data[field_name] = [self._extract_instance_from_model(item) for item in value]
-                elif isinstance(unwrapped_element_type, type) and issubclass(unwrapped_element_type, Enum):
-                    data[field_name] = [item.value for item in value]
-                else:
-                    data[field_name] = list(value)
-            elif isinstance(unwrapped_annotation, type) and issubclass(unwrapped_annotation, BaseModel):
-                data[field_name] = self._extract_instance_from_model(value)
-            elif isinstance(unwrapped_annotation, type) and issubclass(unwrapped_annotation, Enum):
-                data[field_name] = value.value
-            else:
-                data[field_name] = value
-        
-        return data
-    
-    def _unwrap_optional_local(self, annotation: Any) -> Any:
-        """Local helper to unwrap Optional types."""
-        from typing import Union, get_origin, get_args
-        origin = get_origin(annotation)
-        if origin is Union:
-            args = [arg for arg in get_args(annotation) if arg is not type(None)]
-            if len(args) == 1:
-                return args[0]
-        return annotation
-    
-    def _is_list_type_local(self, annotation: Any) -> bool:
-        """Local helper to check if annotation is a list type."""
-        from typing import get_origin
-        origin = get_origin(annotation)
-        return origin in (list, tuple, set) or origin is list
