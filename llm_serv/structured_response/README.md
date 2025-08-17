@@ -203,7 +203,7 @@ Calling str(response) will invoke the __str__ method which will output the insta
             <chance>high</chance>
             <when>evening</when>
         </li>
-    </rain_probability>
+    </rain_probability_timebound>
     <hourly_index>
         <li>3</li>
         <li>4</li>

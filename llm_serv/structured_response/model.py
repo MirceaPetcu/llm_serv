@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from xml.etree import ElementTree as ET
 
 from llm_serv.structured_response.converters.from_prompt import from_prompt
 from llm_serv.structured_response.converters.manual import add_node
@@ -103,6 +102,10 @@ class StructuredResponse:
                     field_schema.get("elements"),
                     indent_level,
                 )
+
+            # Dict case (schema with explicit type == dict)
+            if isinstance(field_schema, dict) and field_schema.get("type") == "dict":
+                return render_object_field(field_name, field_schema.get("elements", {}), field_value, indent_level)
 
             # Nested object (schema dict without explicit type)
             if isinstance(field_schema, dict) and "type" not in field_schema:

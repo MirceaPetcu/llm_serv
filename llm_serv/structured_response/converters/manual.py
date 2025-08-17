@@ -140,5 +140,4 @@ if __name__ == "__main__":
     sr_weather.add_node(node_path="storm_tonight", node_type=bool, description="Whether there will be a storm tonight")
 
     rprint(sr_weather.definition)
-    from pprint import pprint
     print(sr_weather.to_prompt())
