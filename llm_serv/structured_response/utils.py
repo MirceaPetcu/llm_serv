@@ -26,6 +26,15 @@ def coerce_text_to_type(text: str, type_name: str) -> Any:
     return text
 
 
+def coerce_primitive_to_text(value: Any) -> str:
+    """Convert a primitive value to its text representation for XML output."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
 def unwrap_optional(annotation: Any) -> Any:
     """Unwrap Optional[T] to T, handling Union[T, None] patterns."""
     origin = get_origin(annotation)

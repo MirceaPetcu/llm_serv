@@ -99,7 +99,7 @@ if __name__ == "__main__":
     sr.add_node(node_path="children_details.details.age", node_type=int, description="The age of the child")
     
     
-    from rich import print as rprint    
+    from rich import print as rprint
     rprint(sr.definition)
 
     rprint(sr.to_prompt())

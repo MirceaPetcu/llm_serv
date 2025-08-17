@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import enum
 from typing import Any
+
 from pydantic import BaseModel
-from llm_serv.structured_response.utils import unwrap_optional, is_list_type, extract_instance_from_model, extract_constraints
+
+from llm_serv.structured_response.utils import extract_constraints, extract_instance_from_model, is_list_type, unwrap_optional
 
 
 def from_basemodel(model: BaseModel | type[BaseModel]):

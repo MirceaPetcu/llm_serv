@@ -23,12 +23,10 @@ import re
 from typing import Any
 from xml.etree import ElementTree as ET
 
-# Utility functions (standalone to avoid import issues)
-def camel_to_snake(name: str) -> str:
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+# Import utility functions from utils module
+from llm_serv.structured_response.utils import camel_to_snake, coerce_text_to_type, coerce_primitive_to_text
 
-def coerce_text_to_type(text: str, type_name: str) -> Any:
+def local_coerce_text_to_type(text: str, type_name: str) -> Any:
     if text is None:
         return None
     text = text.strip()
@@ -90,7 +88,7 @@ class StructuredResponse:
                             item[child.tag] = parse_element(child, field_schema)
                         items.append(item)
                     else:
-                        items.append(coerce_text_to_type(li.text or "", str(elem_schema)))
+                        items.append(local_coerce_text_to_type(li.text or "", str(elem_schema)))
                 return items
 
             if isinstance(schema, dict) and schema.get("type") == "dict":
@@ -116,12 +114,12 @@ class StructuredResponse:
                 return obj
 
             if not isinstance(schema, dict):
-                return coerce_text_to_type(element.text or "", str(schema))
+                return local_coerce_text_to_type(element.text or "", str(schema))
                 
             type_name = schema.get("type", "str")
             if type_name == "enum":
                 return (element.text or "").strip()
-            return coerce_text_to_type(element.text or "", type_name)
+            return local_coerce_text_to_type(element.text or "", type_name)
 
         self.instance = {}
         for field_name, schema in self.definition.items():
@@ -135,12 +133,7 @@ class StructuredResponse:
         """Render instance as simple XML matching README format."""
         root_tag = camel_to_snake(self.class_name)
 
-        def coerce_primitive_to_text(value: Any) -> str:
-            if value is None:
-                return ""
-            if isinstance(value, bool):
-                return "true" if value else "false"
-            return str(value)
+
 
         def render_simple_field(field_name: str, value: Any, indent_level: int) -> list[str]:
             pad = "    " * indent_level
