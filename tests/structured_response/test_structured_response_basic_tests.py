@@ -63,16 +63,16 @@ def test_from_basemodel_builds_definition():
     # List of complex objects
     rp = d["rain_probability"]
     assert rp["type"] == "list"
-    assert isinstance(rp["elements_type"], dict)
-    assert set(rp["elements_type"].keys()) == {"chance", "when"}
-    assert rp["elements_type"]["chance"]["type"] == "enum"
-    assert rp["elements_type"]["chance"]["choices"] == ["low", "medium", "high"]
-    assert rp["elements_type"]["when"]["type"] == "str"
+    assert isinstance(rp["elements"], dict)
+    assert set(rp["elements"].keys()) == {"chance", "when"}
+    assert rp["elements"]["chance"]["type"] == "enum"
+    assert rp["elements"]["chance"]["choices"] == ["low", "medium", "high"]
+    assert rp["elements"]["when"]["type"] == "str"
 
     # List of simple
     hi = d["hourly_index"]
     assert hi["type"] == "list"
-    assert hi["elements_type"] == "int"
+    assert hi["elements"] == "int"
 
 
 def test_to_prompt_contains_expected_sections():
@@ -88,13 +88,13 @@ def test_to_prompt_contains_expected_sections():
 
     # Enum in list of dicts
     assert "<rain_probability type='list'" in prompt
-    assert "elements_type='dict'" in prompt
+    assert "elements='dict'" in prompt
     assert "<li index='0'>" in prompt
     assert "<chance type='enum' choices='[\"low\", \"medium\", \"high\"]'>" in prompt
     assert "<when type='str'>[The time of day when the rain is or is not expected - as a str]</when>" in prompt
 
     # Simple list
-    assert "<hourly_index type='list' elements_type='int'" in prompt
+    assert "<hourly_index type='list' elements='int'" in prompt
     assert "...</hourly_index>" not in prompt  # ensure proper closing only once
     assert "<wind_speed type='float'>[The wind speed in km/h - as a float]</wind_speed>" in prompt
 
@@ -109,7 +109,7 @@ def test_from_prompt_parses_llm_xml_into_instance():
         "<weather_prognosis>\n"
         "    <location type='str'>Annecy, FR</location>\n"
         "    <current_temperature type='float'>18.7</current_temperature>\n"
-        "    <rain_probability type='list' elements_type='dict'>\n"
+        "    <rain_probability type='list' elements='dict'>\n"
         "        <li index='0'>\n"
         "            <chance type='enum' choices='[\"low\", \"medium\", \"high\"]'>low</chance>\n"
         "            <when type='str'>morning</when>\n"
@@ -119,7 +119,7 @@ def test_from_prompt_parses_llm_xml_into_instance():
         "            <when type='str'>afternoon</when>\n"
         "        </li>\n"
         "    </rain_probability>\n"
-        "    <hourly_index type='list' elements_type='int'>\n"
+        "    <hourly_index type='list' elements='int'>\n"
         "        <li index='0'>3</li>\n"
         "        <li index='1'>4</li>\n"
         "    </hourly_index>\n"

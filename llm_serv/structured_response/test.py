@@ -1,23 +1,21 @@
 from enum import Enum
+from pydantic import BaseModel, Field
 from typing import Optional
 
-from pydantic import Field
-
-from llm_serv.structured_response.model import StructuredResponse
-
+from model import StructuredResponse
+from llm_serv.structured_response.converters.from_basemodel import from_basemodel
+from box import Box
 
 class ChanceScale(Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
 
-
-class RainProbability(StructuredResponse):
+class RainProbability(BaseModel):
     chance: ChanceScale = Field(description="The chance of rain, where low is less than 25% and high is more than 75%")
     when: str = Field(description="The time of day when the rain is or is not expected")
 
-
-class WeatherPrognosis(StructuredResponse):
+class WeatherPrognosis(BaseModel):
     location: str = Field(description="The location of the weather forecast")
     current_temperature: float = Field(description="The current temperature in degrees Celsius")
     rain_probability: Optional[list[RainProbability]] = Field(
@@ -27,21 +25,30 @@ class WeatherPrognosis(StructuredResponse):
     wind_speed: float = Field(description="The wind speed in km/h")
     high: float = Field(ge=-20, le=60, description="The high temperature in degrees Celsius")
     low: float = Field(description="The low temperature in degrees Celsius")
-    storm_tonight: bool = Field(description="Whether there will be a storm tonight")
+    storm_tonight: bool = Field(description="Whether there will be a storm tonight") 
+
+# test 1, build from a BaseModel
+#sr = from_basemodel(WeatherPrognosis)
+#print(sr)
 
 
-def test_plain_class_definition_and_prompt():
-    resp = StructuredResponse.from_basemodel(WeatherPrognosis)
-    assert resp.class_name == "WeatherPrognosis"
-    assert "location" in resp.definition
-    # list of dict for nested class
-    rp = resp.definition["rain_probability"]
-    assert rp["type"] == "list" and isinstance(rp["elements"], dict)
+data = {
+    "a": "b",
+    "c": [
+        {
+            "d": "1",
+            "f": "2"
+        },
+        {
+            "d": "3",
+            "f": "4"
+        }
+    ],
+    "e": 5    
+}
 
-    prompt = resp.to_prompt()
-    assert "<weather_prognosis>" in prompt
-    assert "<location type='str'>[The location of the weather forecast - as a str]</location>" in prompt
-    assert "<chance type='enum" in prompt
-    assert "<hourly_index type='list' elements='int'" in prompt
+sr = StructuredResponse()
+sr.instance = Box(data)
 
-
+print(len(sr.instance.c))
+print(type(sr.instance.c))

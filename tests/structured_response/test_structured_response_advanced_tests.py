@@ -33,7 +33,7 @@ def test_definition_contains_constraints_and_enums():
     assert d["ratio"]["ge"] == 0.0
     assert d["ratio"]["le"] == 1.0
     assert d["level"]["type"] == "enum" and d["level"]["choices"] == ["A", "B"]
-    assert d["tags"]["type"] == "list" and d["tags"]["elements_type"] == "str"
+    assert d["tags"]["type"] == "list" and d["tags"]["elements"] == "str"
     # String length constraints
     assert d["sub"]["name"]["min_length"] == 2
     assert d["sub"]["name"]["max_length"] == 5
@@ -51,11 +51,11 @@ def test_prompt_and_parse_roundtrip_with_values():
         "  <flag type='bool'>true</flag>\n"
         "  <ratio type='float'>0.5</ratio>\n"
         "  <level type='enum' choices='[\"A\", \"B\"]'>A</level>\n"
-        "  <tags type='list' elements_type='str'>\n"
+        "  <tags type='list' elements='str'>\n"
         "    <li index='0'>alpha</li>\n"
         "    <li index='1'>beta</li>\n"
         "  </tags>\n"
-        "  <subs type='list' elements_type='dict'>\n"
+        "  <subs type='list' elements='dict'>\n"
         "    <li index='0'>\n"
         "      <name type='str'>ab</name>\n"
         "      <value type='int'>7</value>\n"

@@ -21,6 +21,7 @@ openai = "^1.97.0"
 aioboto3 = "^14.3.0"
 colorama = "^0.4.6"
 google-genai = "^1.27.0"
+python-box = "^7.3.2"
 
 [tool.pdm.dev-dependencies]
 test = [
