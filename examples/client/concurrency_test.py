@@ -11,11 +11,10 @@ To use this script:
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 from rich.console import Console
-from rich.progress import (Progress, SpinnerColumn, TextColumn,
-                           TimeElapsedColumn)
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 from rich.text import Text
 
@@ -54,7 +53,7 @@ async def run_query(client: LLMServiceClient, query_id: int, timeout: float = 60
         request = LLMRequest(
             conversation=conversation,
             max_completion_tokens=100,
-            temperature=0.7
+            temperature=1
         )
         
         # Make the API call with timeout
@@ -90,7 +89,8 @@ async def main():
     for i in range(NUM_CONCURRENT_QUERIES):
         client = LLMServiceClient(host="localhost", port=9999, timeout=TIMEOUT)
         #client.set_model(provider="OPENAI", name="gpt-5-mini")
-        client.set_model("AWS/claude-3-haiku")
+        #client.set_model("AWS/claude-3-haiku")
+        client.set_model("OPENAI/gpt-5-mini")
         query_tasks.append(run_query(client, i+1, TIMEOUT))
     
     # Run all queries concurrently with a progress indicator
@@ -167,7 +167,7 @@ async def main():
     console.print(table)
     
     # Print statistics
-    console.print(f"\n[bold]Statistics:[/bold]")
+    console.print("\n[bold]Statistics:[/bold]")
     console.print(f"Total queries: {NUM_CONCURRENT_QUERIES}")
     console.print(f"Successful: [green]{successful}[/green]")
     console.print(f"Failed: [red]{failed}[/red]")

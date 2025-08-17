@@ -133,10 +133,20 @@ class LLMProvider(abc.ABC):
             attempt to convert the text output to the desired StructuredResponse class.
             Raises StructuredResponseException if the conversion fails.
             """
-            if isinstance(request.response_model, StructuredResponse):
+            if request.response_model is not None:
                 try:
-                    request.response_model.from_prompt(output)
-                    response.output = request.response_model
+                    # Handle both StructuredResponse instances and serialized strings
+                    if isinstance(request.response_model, str):
+                        # Deserialize JSON string to StructuredResponse
+                        structured_response = StructuredResponse.deserialize(request.response_model)
+                    elif isinstance(request.response_model, StructuredResponse):
+                        structured_response = request.response_model
+                    else:
+                        structured_response = None
+                    
+                    if structured_response:
+                        structured_response.from_prompt(output)
+                        response.output = structured_response
                 except Exception as conversion_error:
                     # Wrap potential conversion errors in a specific exception type
                     raise StructuredResponseException(

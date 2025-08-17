@@ -1,10 +1,10 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from rich import print as rprint
 
-from llm_serv import LLMServiceClient, Conversation, LLMRequest
+from llm_serv import Conversation, LLMRequest, LLMServiceClient
 from llm_serv.structured_response.model import StructuredResponse
 
 
@@ -14,12 +14,12 @@ class ChanceScale(Enum):
     HIGH = "high"
 
 
-class RainProbability(StructuredResponse):
+class RainProbability(BaseModel):
     chance: ChanceScale = Field(description="The chance of rain, where low is less than 25% and high is more than 75%")
     when: str = Field(description="The time of day when the rain is or is not expected")
     exact_mm_ammount: list[str] = Field(description="The exact amount of rain in mm for a 3-hour period estimation, estimation per hour, should have exactly 3 items")  # noqa: E501
 
-class WeatherPrognosis(StructuredResponse):
+class WeatherPrognosis(BaseModel):
     location: str = Field(description="The location of the weather forecast")
     current_temperature: float = Field(description="The current temperature in degrees Celsius")
     rain_probability: Optional[list[RainProbability]] = Field(

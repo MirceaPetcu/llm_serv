@@ -19,12 +19,11 @@ This test suite validates:
 import sys
 import enum
 import json
-import re
 from typing import Any
 from xml.etree import ElementTree as ET
 
 # Import utility functions from utils module
-from llm_serv.structured_response.utils import camel_to_snake, coerce_text_to_type, coerce_primitive_to_text
+from llm_serv.structured_response.utils import camel_to_snake, coerce_primitive_to_text
 
 def local_coerce_text_to_type(text: str, type_name: str) -> Any:
     if text is None:

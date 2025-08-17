@@ -2,10 +2,11 @@ import asyncio
 
 from rich import print as rprint
 
+from llm_serv import Conversation, LLMRequest, LLMServiceClient
 from llm_serv.conversation.image import Image
 from llm_serv.conversation.message import Message
 from llm_serv.conversation.role import Role
-from llm_serv import LLMServiceClient, Conversation, LLMRequest
+
 
 async def main():
     # 1. Initialize the client

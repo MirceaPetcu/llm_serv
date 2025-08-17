@@ -37,6 +37,7 @@ class LLMRequest(BaseModel):
             return response_model
         if isinstance(response_model, str):
             try:
+                # Use the deserialize method to convert JSON string back to StructuredResponse
                 return SR.deserialize(response_model)
             except Exception:
                 return response_model
@@ -67,7 +68,7 @@ class LLMRequest(BaseModel):
         if response_model is None:
             return None
 
-        # Already a StructuredResponse instance
+        # Already a StructuredResponse instance - serialize to JSON string
         if isinstance(response_model, SR):
             return response_model.serialize()
 

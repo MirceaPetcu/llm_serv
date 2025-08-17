@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from llm_serv.api import Model
 from llm_serv.core.components.request import LLMRequest
@@ -24,6 +24,33 @@ class LLMResponse(BaseModel):
     total_duration: float | None = None  # time in seconds of the entire request, including retries (fractions included)
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("output", mode="before")
+    @classmethod
+    def _deserialize_output(cls, output):
+        """Deserialize the output field from JSON string back to StructuredResponse if needed."""
+        if output is None:
+            return None
+        if isinstance(output, str):
+            try:
+                # Try to deserialize JSON string back to StructuredResponse
+                return StructuredResponse.deserialize(output)
+            except Exception:
+                # If deserialization fails, return as string
+                return output
+        # For StructuredResponse instances and other types, return as-is
+        return output
+
+    @field_serializer("output", when_used="json")
+    def _serialize_output(self, output):
+        """Serialize the output field for JSON output."""
+        if output is None:
+            return None
+        if isinstance(output, StructuredResponse):
+            # Use the serialize method to convert to JSON string
+            return output.serialize()
+        # For strings and other types, return as-is
+        return output
 
     @classmethod
     def from_request(cls, request: LLMRequest) -> "LLMResponse":

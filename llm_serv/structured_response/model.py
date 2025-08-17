@@ -33,3 +33,9 @@ class StructuredResponse:
         """Import and call from_basemodel to avoid circular imports."""
         from llm_serv.structured_response.converters.from_basemodel import from_basemodel
         return from_basemodel(model)
+    
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
+        """Minimal Pydantic compatibility - treat as any type."""
+        from pydantic_core import core_schema
+        return core_schema.any_schema()
