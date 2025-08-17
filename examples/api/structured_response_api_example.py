@@ -2,7 +2,7 @@ import asyncio
 from enum import Enum
 from typing import Optional
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from rich import print as rprint
 
 from llm_serv import LLMService
@@ -17,14 +17,14 @@ class ChanceScale(Enum):
     HIGH = "high"
 
 
-class RainProbability(StructuredResponse):
+class RainProbability(BaseModel):
     chance: ChanceScale = Field(description="The chance of rain, where low is less than 25% and high is more than 75%")
     when: str = Field(description="The time of day when the rain is or is not expected")
 
-class UVIndex(StructuredResponse):
+class UVIndex(BaseModel):
     index: int = Field(description="The UV index, where 0 is no UV and 11+ is dangerous")
 
-class WeatherPrognosis(StructuredResponse):
+class WeatherPrognosis(BaseModel):
     location: str = Field(description="The location of the weather forecast")
     current_temperature: float = Field(description="The current temperature in degrees Celsius")
     rain_probability: Optional[list[RainProbability]] = Field(
