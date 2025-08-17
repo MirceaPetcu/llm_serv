@@ -1,121 +1,149 @@
-from enum import Enum
+from __future__ import annotations
+
+import enum
 from typing import Any, Union, get_args, get_origin
-from pydantic import BaseModel, fields
+from pydantic import BaseModel
 from llm_serv.structured_response.model import StructuredResponse
 
 
 def from_basemodel(model: BaseModel | type[BaseModel]) -> StructuredResponse:
     """
-    Build a StructuredResponse definition from a Pydantic BaseModel.
+    Build a StructuredResponse definition from a Pydantic BaseModel type or instance.
+    
+    Args:
+        model: Either a BaseModel class or an instance of a BaseModel
+        
+    Returns:
+        StructuredResponse: A structured response with definition populated from the BaseModel
+        and instance data populated if an instance was provided
     """
-
-    # Normalize input to a list
-    if not isinstance(objects, list):
-        objects_list: list[type[BaseModel] | BaseModel] = [objects]
-    else:
-        objects_list = objects
-
-    if len(objects_list) == 0:
-        raise ValueError("from_basemodel requires at least one BaseModel type or instance")
-
-    root_obj = objects_list[0]
-    is_instance_input = isinstance(root_obj, BaseModel)
-    root_type: type = root_obj.__class__ if is_instance_input else root_obj  # type: ignore[assignment]
-
-    def build_field_definition(field_annotation: Any, field_info) -> dict | str:
-        """Return a definition dict for complex fields or a type string for simple fields."""
-        ann = _unwrap_optional(field_annotation)
-
-        # List handling
-        if _is_list(ann):
-            elem_ann = _unwrap_optional(_list_arg(ann))
-            if isinstance(elem_ann, type) and (issubclass(elem_ann, BaseModel) or hasattr(elem_ann, "__annotations__")):
-                elem_def = {}
-                for sub_name, sub_ann, sub_info in _iter_schema_fields(elem_ann):
-                    elem_def[sub_name] = build_field_definition(sub_ann, sub_info)
-                result: dict[str, Any] = {
-                    "type": "list",
-                    "description": (getattr(field_info, "description", "") if field_info else ""),
-                    "elements": elem_def,
-                }
-            else:
-                result = {
-                    "type": "list",
-                    "description": (getattr(field_info, "description", "") if field_info else ""),
-                    "elements": _python_type_name(elem_ann),
-                }
-            # Constraints
-            for k, v in _extract_constraints(field_info).items():
-                result[k] = v
-            return result
-
-        # Enum
-        if isinstance(ann, type) and issubclass(ann, Enum):
-            return {
-                "type": "enum",
-                "choices": [e.value for e in ann],
-                "description": (getattr(field_info, "description", "") if field_info else ""),
-            }
-
-        # Nested BaseModel
-        if isinstance(ann, type) and (issubclass(ann, BaseModel) or hasattr(ann, "__annotations__")):
-            nested: dict[str, Any] = {}
-            for sub_name, sub_ann, sub_info in _iter_schema_fields(ann):
-                nested[sub_name] = build_field_definition(sub_ann, sub_info)
-            return nested
-
-        # Primitive
-        field_def: dict[str, Any] = {
-            "type": _python_type_name(ann),
-            "description": (getattr(field_info, "description", "") if field_info else ""),
-        }
-
-        # Constraints
-        for k, v in _extract_constraints(field_info).items():
-            field_def[k] = v
-        return field_def
-
-    definition: dict[str, Any] = {}
-    for field_name, field_ann, field_info in _iter_schema_fields(root_type):
-        definition[field_name] = build_field_definition(field_ann, field_info)
-
-    resp = StructuredResponse(
-        class_name=root_type.__name__,
-        definition=definition,
-        instance=None,
-    )
-
-    # If we got an instance, prefill instance dict from it
+    # Determine if we have a type or instance
+    is_instance_input = isinstance(model, BaseModel)
+    model_type: type[BaseModel] = model.__class__ if is_instance_input else model
+    
+    # Create the StructuredResponse
+    response = StructuredResponse()
+    response.class_name = model_type.__name__
+    
+    # Build the definition using add_node method
+    _build_definition_recursive(response, "", model_type)
+    
+    # If we got an instance, extract the instance data
     if is_instance_input:
-        resp.instance = resp._extract_instance_from_model(root_obj)  # type: ignore[arg-type]
+        response.instance = _extract_instance_from_model(model)
+    
+    return response
 
-    return resp
 
-def _extract_instance_from_model(self, model: BaseModel) -> dict:
+def _build_definition_recursive(response: StructuredResponse, path_prefix: str, model_type: type[BaseModel]) -> None:
+    """
+    Recursively build the definition using the add_node method.
+    
+    Args:
+        response: The StructuredResponse to populate
+        path_prefix: The current path prefix for nested fields
+        model_type: The BaseModel type to process
+    """
+    for field_name, field_info in model_type.model_fields.items():
+        current_path = f"{path_prefix}.{field_name}" if path_prefix else field_name
+        annotation = field_info.annotation
+        description = field_info.description or ""
+        
+        # Extract constraints from field_info
+        constraints = _extract_constraints(field_info)
+        
+        # Unwrap Optional types
+        unwrapped_annotation = _unwrap_optional(annotation)
+        
+        # Handle different field types
+        if _is_list_type(unwrapped_annotation):
+            _handle_list_field(response, current_path, unwrapped_annotation, description, constraints)
+        elif _is_enum_type(unwrapped_annotation):
+            _handle_enum_field(response, current_path, unwrapped_annotation, description, constraints)
+        elif _is_basemodel_type(unwrapped_annotation):
+            _handle_basemodel_field(response, current_path, unwrapped_annotation, description, constraints)
+        else:
+            _handle_primitive_field(response, current_path, unwrapped_annotation, description, constraints)
+
+
+def _handle_list_field(response: StructuredResponse, path: str, annotation: Any, description: str, constraints: dict[str, Any]) -> None:
+    """Handle list type fields."""
+    element_type = _get_list_element_type(annotation)
+    unwrapped_element_type = _unwrap_optional(element_type)
+    
+    if _is_basemodel_type(unwrapped_element_type):
+        # List of BaseModel objects
+        response.add_node(path, list, elements=dict, description=description, **constraints)
+        _build_definition_recursive(response, path, unwrapped_element_type)
+    elif _is_enum_type(unwrapped_element_type):
+        # List of enums
+        response.add_node(path, list, elements=enum, description=description, **constraints)
+    else:
+        # List of primitives
+        python_type = _annotation_to_python_type(unwrapped_element_type)
+        response.add_node(path, list, elements=python_type, description=description, **constraints)
+
+
+def _handle_enum_field(response: StructuredResponse, path: str, annotation: Any, description: str, constraints: dict[str, Any]) -> None:
+    """Handle enum type fields."""
+    response.add_node(path, enum, description=description, choices=annotation, **constraints)
+
+
+def _handle_basemodel_field(response: StructuredResponse, path: str, annotation: Any, description: str, constraints: dict[str, Any]) -> None:
+    """Handle nested BaseModel fields."""
+    response.add_node(path, dict, description=description, **constraints)
+    _build_definition_recursive(response, path, annotation)
+
+
+def _handle_primitive_field(response: StructuredResponse, path: str, annotation: Any, description: str, constraints: dict[str, Any]) -> None:
+    """Handle primitive type fields (str, int, float, bool)."""
+    python_type = _annotation_to_python_type(annotation)
+    response.add_node(path, python_type, description=description, **constraints)
+
+
+def _extract_instance_from_model(model: BaseModel) -> dict[str, Any]:
+    """
+    Extract instance data from a BaseModel instance.
+    
+    Args:
+        model: The BaseModel instance to extract data from
+        
+    Returns:
+        dict: The instance data as a dictionary
+    """
     data: dict[str, Any] = {}
+    
     for field_name, field_info in model.__class__.model_fields.items():
         value = getattr(model, field_name)
-        ann = _unwrap_optional(field_info.annotation)
+        annotation = field_info.annotation
+        unwrapped_annotation = _unwrap_optional(annotation)
+        
         if value is None:
             data[field_name] = None
             continue
 
-        if _is_list(ann):
-            elem_ann = _unwrap_optional(_list_arg(ann))
-            if isinstance(elem_ann, type) and issubclass(elem_ann, BaseModel):
-                data[field_name] = [self._extract_instance_from_model(item) for item in value]
+        if _is_list_type(unwrapped_annotation):
+            element_type = _get_list_element_type(unwrapped_annotation)
+            unwrapped_element_type = _unwrap_optional(element_type)
+            
+            if _is_basemodel_type(unwrapped_element_type):
+                data[field_name] = [_extract_instance_from_model(item) for item in value]
+            elif _is_enum_type(unwrapped_element_type):
+                data[field_name] = [item.value for item in value]
             else:
                 data[field_name] = list(value)
-        elif isinstance(ann, type) and issubclass(ann, BaseModel):
-            data[field_name] = self._extract_instance_from_model(value)
-        elif isinstance(ann, type) and issubclass(ann, Enum):
+        elif _is_basemodel_type(unwrapped_annotation):
+            data[field_name] = _extract_instance_from_model(value)
+        elif _is_enum_type(unwrapped_annotation):
             data[field_name] = value.value
         else:
             data[field_name] = value
+    
     return data
 
 
 def _unwrap_optional(annotation: Any) -> Any:
+    """Unwrap Optional[T] to T, handling Union[T, None] patterns."""
     origin = get_origin(annotation)
     if origin is Union:
         args = [arg for arg in get_args(annotation) if arg is not type(None)]
@@ -124,69 +152,72 @@ def _unwrap_optional(annotation: Any) -> Any:
     return annotation
 
 
-def _is_list(annotation: Any) -> bool:
-    return get_origin(annotation) in (list, list.__class__, tuple, set) or get_origin(annotation) is list
+def _is_list_type(annotation: Any) -> bool:
+    """Check if annotation represents a list type."""
+    origin = get_origin(annotation)
+    return origin in (list, tuple, set) or origin is list
 
 
-def _list_arg(annotation: Any) -> Any:
-    return get_args(annotation)[0] if get_args(annotation) else Any
+def _is_enum_type(annotation: Any) -> bool:
+    """Check if annotation represents an enum type."""
+    return isinstance(annotation, type) and issubclass(annotation, enum.Enum)
 
 
+def _is_basemodel_type(annotation: Any) -> bool:
+    """Check if annotation represents a BaseModel type."""
+    return isinstance(annotation, type) and issubclass(annotation, BaseModel)
 
 
-def _python_type_name(annotation: Any) -> str:
+def _get_list_element_type(annotation: Any) -> Any:
+    """Get the element type from a list annotation."""
+    args = get_args(annotation)
+    return args[0] if args else Any
+
+
+def _annotation_to_python_type(annotation: Any) -> type:
+    """Convert type annotation to Python built-in type."""
     if annotation is int:
-        return "int"
-    if annotation is float:
-        return "float"
-    if annotation is str:
-        return "str"
-    if annotation is bool:
-        return "bool"
-    if isinstance(annotation, type) and issubclass(annotation, Enum):
-        return "enum"
-    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        return "dict"
-    if _is_list(annotation):
-        return "list"
-    return getattr(annotation, "__name__", str(annotation))
+        return int
+    elif annotation is float:
+        return float
+    elif annotation is str:
+        return str
+    elif annotation is bool:
+        return bool
+    else:
+        # Fallback for unknown types
+        return str
 
 
 def _extract_constraints(field_info: Any) -> dict[str, Any]:
+    """
+    Extract validation constraints from Pydantic field info.
+    
+    Args:
+        field_info: Pydantic FieldInfo object
+        
+    Returns:
+        dict: Dictionary of constraint name -> value pairs
+    """
     constraints: dict[str, Any] = {}
     if not field_info:
         return constraints
-    # Direct attributes on FieldInfo (works for non-BaseModel usage too)
-    for attr in ("ge", "gt", "le", "lt", "multiple_of", "min_length", "max_length"):
+    
+    # Direct attributes on FieldInfo
+    constraint_attrs = (
+        "ge", "gt", "le", "lt", "multiple_of", "min_length", "max_length"
+    )
+    for attr in constraint_attrs:
         value = getattr(field_info, attr, None)
         if value is not None:
             constraints[attr] = value
-    # Pydantic BaseModel field_info may keep constraints in metadata
+    
+    # Pydantic 2.x stores constraints in metadata
     for constraint in getattr(field_info, "metadata", []) or []:
-        for attr in ("ge", "gt", "le", "lt", "multiple_of", "min_length", "max_length"):
+        for attr in constraint_attrs:
             if hasattr(constraint, attr):
                 value = getattr(constraint, attr)
                 if value is not None and attr not in constraints:
                     constraints[attr] = value
+    
     return constraints
-
-
-def _iter_schema_fields(cls: type) -> list[tuple[str, Any, Any]]:
-    """Return (name, annotation, field_info) for a class that may be a BaseModel subclass
-    or a plain class using Field() descriptors."""
-    results: list[tuple[str, Any, Any]] = []
-    if isinstance(cls, type) and issubclass(cls, BaseModel):
-        for name, finfo in cls.model_fields.items():
-            results.append((name, finfo.annotation, finfo))
-        return results
-    # Plain class path: use annotations and attribute value as FieldInfo if present
-    annotations = getattr(cls, "__annotations__", {}) or {}
-    for name, ann in annotations.items():
-        finfo = getattr(cls, name, None)
-        # Only treat FieldInfo-like or None
-        if isinstance(finfo, fields.FieldInfo) or finfo is None:
-            results.append((name, ann, finfo))
-        else:
-            results.append((name, ann, None))
-    return results
-
