@@ -84,8 +84,12 @@ async def main():
         try:
             response = await asyncio.wait_for(llm_service(request), timeout=30.0)
             
+            print("\nResponse type:")
+            print(type(response.output))
+
             print("\nResponse:")
             print(response.output)
+
             
             print("\nToken Usage:")
             print(f"Input tokens: {response.tokens.input_tokens}")

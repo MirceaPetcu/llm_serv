@@ -1,3 +1,4 @@
+import enum
 from pathlib import Path
 
 import yaml
@@ -16,6 +17,7 @@ class Model(BaseModel):
     
     max_tokens: int
     max_output_tokens: int
+    fixed_temperature: bool = False
     capabilities: dict = {}
     price: dict = {}
     config: dict = {}
@@ -118,6 +120,7 @@ class LLMService:
                 internal_model_id=model_data["internal_model_id"],
                 max_tokens=model_data["max_tokens"],
                 max_output_tokens=model_data["max_output_tokens"],
+                fixed_temperature=model_data.get("fixed_temperature", False),
                 capabilities=model_data.get("capabilities", {}),
                 config=model_data.get("config", {}),
                 price=model_data.get("price", {}),
@@ -253,7 +256,7 @@ class LLMService:
 
         match provider_name:
             case "AWS":                
-                from llm_serv.core.providers.aws import AWSLLMProvider                
+                from llm_serv.core.providers.aws import AWSLLMProvider
                 return AWSLLMProvider(model)
             
             case "AZURE":                

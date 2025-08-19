@@ -10,7 +10,7 @@ from llm_serv.core.exceptions import (CredentialsException,
                                       ServiceCallThrottlingException,
                                       StructuredResponseException,
                                       TimeoutException)
-from llm_serv.api import Model, ModelProvider
+from llm_serv.api import LLMService, Model, ModelProvider
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,6 +27,8 @@ class LLMServiceClient:
         self.model_name: str | None = None
         self._client: httpx.AsyncClient | None = None # Initialize client as None initially
         self.logger = logger # Use the module-level logger or create a specific instance logger
+
+        self.llm_service = LLMService()
 
         if model_id:
             self._set_model_id(model_id)
@@ -167,6 +169,16 @@ class LLMServiceClient:
         Sets the model to use for subsequent chat requests.
         """
         self._set_model_id(model_id) # This now updates model_id, provider, and name
+
+    def has_fixed_temperature(self) -> bool:
+        """
+        Checks if the model has a fixed temperature.
+        """
+        try:
+            return self.llm_service.get_model(self.model_id).fixed_temperature
+        except Exception as e:
+            self.logger.warning(f"Failed to get model {self.model_id}: {str(e)}, could I have stale info?", exc_info=True)
+            return False        
 
     async def chat(self, request: LLMRequest, timeout: float | None = None) -> LLMResponse:
         """

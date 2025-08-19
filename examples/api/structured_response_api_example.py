@@ -69,6 +69,9 @@ async def main():
     # Use await for async service call
     response = await llm_service(request)
 
+    print("\nResponse type:")
+    print(type(response.output))
+
     print("\nResponse:")
     rprint(response.output)
 

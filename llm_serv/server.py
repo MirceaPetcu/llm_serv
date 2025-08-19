@@ -221,10 +221,10 @@ def main():
         )
     except ValueError as e:
         logger.error(f"Invalid port configuration: {str(e)}", exc_info=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from e
     except Exception as e:
         logger.error(f"Failed to start server: {str(e)}", exc_info=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from e
 
 
 if __name__ == "__main__":

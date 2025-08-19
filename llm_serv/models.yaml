@@ -79,6 +79,7 @@ MODELS:
     internal_model_id: gpt-5-mini
     max_tokens: 1047576
     max_output_tokens: 32768
+    fixed_temperature: true
     capabilities:
       image_support: true
       document_support: true
@@ -93,6 +94,7 @@ MODELS:
     internal_model_id: gpt-5
     max_tokens: 1047576
     max_output_tokens: 32768
+    fixed_temperature: true
     capabilities:
       image_support: true
       document_support: true
@@ -107,6 +109,7 @@ MODELS:
     internal_model_id: o4-mini
     max_tokens: 200000
     max_output_tokens: 16000
+    fixed_temperature: true
     capabilities:
       image_support: true
       document_support: true
