@@ -125,7 +125,7 @@ class LLMProvider(abc.ABC):
                 raise ServiceCallException(
                     "LLM service call failed to return output after retries, without raising a specific exception."
                 )
-
+            logger.debug(f"LLM returned {len(output)} characters.")
             response.output = output  # assign initial string output
 
             """
