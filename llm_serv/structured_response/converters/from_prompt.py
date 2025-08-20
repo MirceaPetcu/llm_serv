@@ -1,8 +1,11 @@
 from typing import Any
 from xml.etree import ElementTree as ET
 
-from llm_serv.structured_response.utils import camel_to_snake, coerce_text_to_type
+import sloppy_xml
+
 from llm_serv.logger import logger
+from llm_serv.structured_response.utils import camel_to_snake, coerce_text_to_type
+
 
 def from_prompt(self, xml_string: str) -> None:
     """
@@ -31,7 +34,8 @@ def from_prompt(self, xml_string: str) -> None:
 
     # Ensure the opening tag is well-formed (strip attributes if any are present)
     try:
-        root_element = ET.fromstring(xml_sub)
+        #root_element = ET.fromstring(xml_sub)
+        root_element = sloppy_xml.tree_parse(xml_sub)
     except ET.ParseError as exc:
         logger.error(f"Invalid XML content: {exc}")
         logger.error(f"XML content:\n{xml_sub}")
@@ -111,3 +115,47 @@ def from_prompt(self, xml_string: str) -> None:
             self.instance[field_name] = None
             continue
         self.instance[field_name] = parse_element(child, schema)
+
+
+def _preprocess_xml(xml_string: str) -> str:
+    """
+    Preprocess the XML string to remove any comments and other non-essential content.
+    """
+    return xml_string
+
+
+if __name__ == "__main__":
+    xml_string = """
+    <query_generation_response>
+    <vector_store_queries type='list' elements='str' description='The queries used to retrieve the statements from the vector store'>
+        <li index='0'>Corporate strategy for renewable generation expansion and portfolio diversification</li>
+        <li index='1'>Utility-scale wind and solar capacity addition targets through 2030</li>
+        <li index='2'>Pipeline of greenfield projects with development, permitting, construction timelines</li>
+        <li index='3'>Plan for grid interconnection, transmission upgrades, curtailment mitigation</li>
+        <li index='4'>Equipment sourcing and EPC strategy for wind turbines and PV modules</li>
+        <li index='5'>Capital allocation and financing for clean generation buildout, tax credits</li>
+        <li index='6'>Operations, maintenance, asset management plans for new clean generation</li>
+        <li index='7'>Land acquisition, community engagement, environmental impact for new projects</li>
+        <li index='8'>Replacement of fossil units with new zero-carbon generation capacity</li>
+        <li index='9'>Hydroelectric and geothermal development strategy within clean energy portfolio</li>
+    </vector_store_queries>
+    <bm25_queries type='list' elements='str' description='The queries used to retrieve the statements from the bm25 model'>
+        <li index='0'>renewables expansion strategy, corporate roadmap, growth targets, portfolio diversification, utility sector</li>
+        <li index='1'>utility-scale wind MW targets, solar PV additions, 2025 milestones, 2030 goals</li>
+        <li index='2'>greenfield pipeline, interconnection queue, site control, permits, NEPA, development stages</li>
+        <li index='3'>interconnection agreements, transmission capacity, congestion, curtailment risk, ERCOT, PJM, CAISO</li>
+        <li index='4'>turbine suppliers, photovoltaic module procurement, trackers, inverters, EPC contracts, supply chain</li>
+        <li index='5'>capex, project finance, PTC, ITC, transferability, Inflation Reduction Act, tax equity</li>
+        <li index='6'>O&M, availability, capacity factor, warranties, service agreements, SCADA, predictive maintenance</li>
+        <li index='7'>site leasing, easements, wildlife studies, environmental impact assessment, community benefits, local hiring</li>
+        <li index='8'>coal retirements, gas plant conversion, replacement capacity, decarbonization pathway, emissions reduction targets</li>
+        <li index='9'>hydro expansion, pumped storage, geothermal wells, binary cycle, resource assessment, exploration</li>
+    </bm25_queries>
+</query_generation_response>
+    """
+    print(_preprocess_xml(xml_string))
+
+    
+
+    output = sloppy_xml.tree_parse(xml_string)
+    print(output)

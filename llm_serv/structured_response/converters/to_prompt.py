@@ -3,6 +3,11 @@ from typing import Any
 
 from llm_serv.structured_response.utils import camel_to_snake
 
+PREAMBLE = """Respond ONLY with valid XML, following the rules:
+- Notice that "..." represents multiple <li> items.
+- Do not include any attributes in the output! The 'description' attribute is for you to understand the problem and how to respond; the 'type' is for you to understand the type of the response item, etc.
+- Output only VALID XML, while keeping in mind the objective at all times.
+"""
 
 def to_prompt(self) -> str:
     """
@@ -132,4 +137,4 @@ def to_prompt(self) -> str:
         lines.extend(render_field(field_name, field_schema, indent=1))
     lines.append(f"</{root_tag}>")
     
-    return "\n".join(lines)
+    return "\n".join([PREAMBLE] + lines)

@@ -21,6 +21,8 @@ openai = "^1.97.0"
 aioboto3 = "^14.3.0"
 colorama = "^0.4.6"
 google-genai = "^1.27.0"
+lxml = "^6.0.0"
+sloppy-xml = "^0.3.0"
 
 [tool.pdm.dev-dependencies]
 test = [

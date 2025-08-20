@@ -35,6 +35,7 @@ class WeatherPrognosis(BaseModel):
     high: Optional[float] = Field(ge=-20, le=60, description="The high temperature in degrees Celsius")
     low: Optional[float] = Field(description="The low temperature in degrees Celsius")
     storm_tonight: bool = Field(description="Whether there will be a storm tonight")
+    windspeed: list[float] = Field(description="The wind speed in km/h, per hour")
 
 
 async def main():
@@ -54,7 +55,7 @@ async def main():
     Here is the weather forecast:
     {input_text}
 
-    Here is the structured response:
+    Output format:    
     {response_model.to_prompt()}
     """
 

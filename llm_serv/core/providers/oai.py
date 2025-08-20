@@ -137,6 +137,8 @@ class OpenAILLMProvider(LLMProvider):
             
             raise ServiceCallException(f"OpenAI service error: {str(e)}") from e
 
+        logger.info(f"'{response.model}' status response '{response.status}', output:\n{response.output_text}")           
+
         # check for errors
         if response.error is not None:
             raise ServiceCallException(f"OpenAI service error {response.error.code}: {response.error.message}")
@@ -146,7 +148,7 @@ class OpenAILLMProvider(LLMProvider):
             raise ServiceCallException(f"OpenAI service error, finished with status: {response.status}")
 
         # get the output
-        output = response.output_text            
+        output = response.output_text 
 
         # update the tokens
         tokens = ModelTokens(
