@@ -150,7 +150,9 @@ class LLMProvider(abc.ABC):
                 except Exception as conversion_error:
                     # Wrap potential conversion errors in a specific exception type
                     raise StructuredResponseException(
-                        f"Failed to convert LLM output to structured format: {conversion_error}"
+                        message=f"Failed to convert LLM output to structured format: {conversion_error}",
+                        xml=output,
+                        return_class=str(type(request.response_model))
                     ) from conversion_error
 
             response.tokens.add(self.model.id, model_tokens)

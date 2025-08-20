@@ -8,6 +8,7 @@ import os
 from openai import AsyncOpenAI, RateLimitError
 from pydantic import Field
 
+from llm_serv.logger import logger
 from llm_serv.api import Model
 from llm_serv.conversation.conversation import Conversation
 from llm_serv.conversation.role import Role
@@ -197,6 +198,8 @@ class OpenAILLMProvider(LLMProvider):
             api_response = await self._client.chat.completions.create(**completion_params)
             
             output = api_response.choices[0].message.content
+            logger.debug(f"LLM returned {len(output)} characters.")
+            
             tokens = ModelTokens(
                 input_tokens=api_response.usage.prompt_tokens,
                 #cached_input_tokens=api_response.usage.input_tokens_details.cached_tokens,

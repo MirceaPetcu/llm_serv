@@ -12,7 +12,7 @@ class TimeoutException(BaseException):
 
 class StructuredResponseException(BaseException):
     """Exception raised when structured response parsing fails."""
-    def __init__(self, message: str, xml: str = "", return_class: type = None):
+    def __init__(self, message: str, xml: str = "", return_class: str = None):
         self.xml = xml
         self.return_class = return_class
         super().__init__(message)

@@ -77,8 +77,8 @@ MODELS:
 
   OPENAI/gpt-5-mini:
     internal_model_id: gpt-5-mini
-    max_tokens: 1047576
-    max_output_tokens: 32768
+    max_tokens: 400000
+    max_output_tokens: 128000
     fixed_temperature: true
     capabilities:
       image_support: true
@@ -92,8 +92,8 @@ MODELS:
 
   OPENAI/gpt-5:
     internal_model_id: gpt-5
-    max_tokens: 1047576
-    max_output_tokens: 32768
+    max_tokens: 128000
+    max_output_tokens: 16384
     fixed_temperature: true
     capabilities:
       image_support: true
