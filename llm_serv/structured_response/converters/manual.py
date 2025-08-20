@@ -38,7 +38,7 @@ def add_node(self,
         assert key not in FORBIDDEN_KEYS, f"Key name '{key}' is forbidden!"
 
     for key in path:  # walk the path to the target node
-        print(f"Navigating to node-name={key}")
+        #print(f"Navigating to node-name={key}")
         if key not in target_node:
             raise ValueError(f"Intermediary node '{key}' not found in definition! Given path: {path}")
         
