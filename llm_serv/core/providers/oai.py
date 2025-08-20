@@ -117,7 +117,8 @@ class OpenAILLMProvider(LLMProvider):
             "model": self.model.internal_model_id,
             "input": input_messages,
             "max_output_tokens": config["max_output_tokens"],
-            "temperature": config["temperature"]                
+            "temperature": config["temperature"],            
+            "text": { "format": { "type": "text" } },
         }
 
         if instructions is not None:
@@ -129,6 +130,21 @@ class OpenAILLMProvider(LLMProvider):
         # call the LLM provider using responses API, no need to retry, it is handled in the base class                   
         try: 
             response = await self._client.responses.create(**request_params)
+
+            # update the tokens
+            tokens = ModelTokens(
+                input_tokens=response.usage.input_tokens,
+                cached_input_tokens=response.usage.input_tokens_details.cached_tokens,
+                output_tokens=response.usage.output_tokens,
+                reasoning_output_tokens=response.usage.output_tokens_details.reasoning_tokens,
+                total_tokens=response.usage.total_tokens,
+                # Store current price rates for historical accuracy
+                input_price_per_1m_tokens=self.model.input_price_per_1m_tokens,
+                cached_input_price_per_1m_tokens=self.model.cached_input_price_per_1m_tokens,
+                output_price_per_1m_tokens=self.model.output_price_per_1m_tokens,
+                reasoning_output_price_per_1m_tokens=self.model.reasoning_output_price_per_1m_tokens,
+            )
+
         except Exception as e:
             if isinstance(e, RateLimitError):  # package specific exception into our own for base class processing
                 raise ServiceCallThrottlingException(f"OpenAI service is throttling requests: {str(e)}") from e
@@ -147,23 +163,12 @@ class OpenAILLMProvider(LLMProvider):
         if response.status != "completed":
             raise ServiceCallException(f"OpenAI service error, finished with status: {response.status}")
 
-        # get the output
-        output = response.output_text 
+        # check that we actually have an output        
+        output = str(response.output_text).strip()
 
-        # update the tokens
-        tokens = ModelTokens(
-            input_tokens=response.usage.input_tokens,
-            cached_input_tokens=response.usage.input_tokens_details.cached_tokens,
-            output_tokens=response.usage.output_tokens,
-            reasoning_output_tokens=response.usage.output_tokens_details.reasoning_tokens,
-            total_tokens=response.usage.total_tokens,
-            # Store current price rates for historical accuracy
-            input_price_per_1m_tokens=self.model.input_price_per_1m_tokens,
-            cached_input_price_per_1m_tokens=self.model.cached_input_price_per_1m_tokens,
-            output_price_per_1m_tokens=self.model.output_price_per_1m_tokens,
-            reasoning_output_price_per_1m_tokens=self.model.reasoning_output_price_per_1m_tokens,
-        )
-
+        if len(output) == 0:
+            raise ServiceCallException(f"OpenAI service error, call finished with 'completed' status, max_output_tokens={config['max_output_tokens']}, output_tokens={tokens.output_tokens} out of which reasoning={tokens.reasoning_output_tokens}, total_tokens={tokens.total_tokens}, but got an empty output!")  # noqa: E501
+        
         return output, tokens
 
 
