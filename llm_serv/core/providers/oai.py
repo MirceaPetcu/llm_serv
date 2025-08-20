@@ -47,86 +47,16 @@ class OpenAILLMProvider(LLMProvider):
 
     async def _convert(self, request: LLMRequest) -> dict:
         """
-        Ref here: https://platform.openai.com/docs/api-reference/chat/object
+        Ref here: https://platform.openai.com/docs/api-reference/responses/create
         https://platform.openai.com/docs/guides/vision#multiple-image-inputs
-        returns (messages, system, config)
-
-        Example how to send multiple images as urls:
-        client = OpenAI()
-        response = client.chat.completions.create(
-        model="gpt-5-mini",
-        messages=[
-        {
-            "role": "user",
-            "content": [
-            {
-                "type": "text",
-                "text": "What are in these images? Is there any difference between them?",
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
-                },
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
-                },
-            },
-            ],
-        }
-        ],
-        max_tokens=300,
-        )
-
-        and example how to send an image as base64:
-
-        import base64
-        from openai import OpenAI
-
-        client = OpenAI()
-
-        # Function to encode the image
-        def encode_image(image_path):
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode('utf-8')
-
-        # Path to your image
-        image_path = "path_to_your_image.jpg"
-
-        # Getting the base64 string
-        base64_image = encode_image(image_path)
-
-        response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-            "role": "user",
-            "content": [
-                {
-                "type": "text",
-                "text": "What is in this image?",
-                },
-                {
-                "type": "image_url",
-                "image_url": {
-                    "url":  f"data:image/jpeg;base64,{base64_image}"
-                },
-                },
-            ],
-            }
-        ],
-        )
+        returns (input, config)
         """
-        messages = []
-
+        
+        input_messages = []
+        instructions = None
         # Handle system message if present
         if request.conversation.system is not None and len(request.conversation.system) > 0:
-            messages.append(
-                {"role": Role.SYSTEM.value, "content": [{"type": "text", "text": request.conversation.system}]}
-            )
+            instructions = request.conversation.system
 
         # Process each message
         for message in request.conversation.messages:
@@ -134,7 +64,7 @@ class OpenAILLMProvider(LLMProvider):
 
             # Add text content if present
             if message.text:
-                content.append({"type": "text", "text": message.text})
+                content.append({"type": "input_text", "text": message.text})
 
             # Add images if present
             for image in message.images:
@@ -148,7 +78,7 @@ class OpenAILLMProvider(LLMProvider):
                     }
                 )
 
-            messages.append({"role": message.role.value, "content": content})
+            input_messages.append({"role": message.role.value, "content": content})
 
         """
         TODO: strict format handling
@@ -158,18 +88,17 @@ class OpenAILLMProvider(LLMProvider):
         """
         
         config = {
-            "max_completion_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,  # noqa: E501
+            "max_output_tokens": request.max_completion_tokens if request.max_completion_tokens is not None else self.model.max_output_tokens,  # noqa: E501
             "temperature": request.temperature,
-            "top_p": request.top_p,
-            "response_format": ({"type": "text"})
+            "top_p": request.top_p
         }
 
         return {
-            "messages": messages,            
+            "instructions": instructions,
+            "input": input_messages,            
             "config": config
         }
     
-    # TODO https://platform.openai.com/docs/guides/responses-vs-chat-completions?api-mode=responses switch to responses api
     async def _llm_service_call(
         self,
         request: LLMRequest,
@@ -178,41 +107,28 @@ class OpenAILLMProvider(LLMProvider):
         try:
             processed = await self._convert(request)
             config = processed["config"]
-            messages = processed["messages"]
+            input_messages = processed["input"]
+            instructions = processed["instructions"]
         except Exception as e:
             raise InternalConversionException(f"Failed to convert request: {str(e)}") from e
 
-        # call the LLM provider, no need to retry, it is handled in the base class
-        try:            
-            # Prepare parameters for the API call, excluding top_p initially.
-            completion_params = {
-                "model": self.model.internal_model_id,
-                "messages": messages,
-                "max_completion_tokens": config["max_completion_tokens"],
-                "temperature": config["temperature"],
-                "response_format": config["response_format"],
-            }
-            if config["top_p"] is not None:
-                completion_params["top_p"] = config["top_p"]
-            
-            api_response = await self._client.chat.completions.create(**completion_params)
-            
-            output = api_response.choices[0].message.content
-            logger.debug(f"LLM returned {len(output)} characters.")
-            
-            tokens = ModelTokens(
-                input_tokens=api_response.usage.prompt_tokens,
-                #cached_input_tokens=api_response.usage.input_tokens_details.cached_tokens,
-                output_tokens=api_response.usage.completion_tokens,
-                #reasoning_output_tokens=api_response.usage.output_tokens_details.reasoning_tokens,
-                total_tokens=api_response.usage.total_tokens,
-                # Store current price rates for historical accuracy
-                input_price_per_1m_tokens=self.model.input_price_per_1m_tokens,
-                cached_input_price_per_1m_tokens=self.model.cached_input_price_per_1m_tokens,
-                output_price_per_1m_tokens=self.model.output_price_per_1m_tokens,
-                reasoning_output_price_per_1m_tokens=self.model.reasoning_output_price_per_1m_tokens,
-            )
+        # Prepare parameters for the API call, excluding top_p initially.
+        request_params = {
+            "model": self.model.internal_model_id,
+            "input": input_messages,
+            "max_output_tokens": config["max_output_tokens"],
+            "temperature": config["temperature"]                
+        }
 
+        if instructions is not None:
+            request_params["instructions"] = instructions
+
+        if config["top_p"] is not None:
+            request_params["top_p"] = config["top_p"]
+        
+        # call the LLM provider using responses API, no need to retry, it is handled in the base class                   
+        try: 
+            response = await self._client.responses.create(**request_params)
         except Exception as e:
             if isinstance(e, RateLimitError):  # package specific exception into our own for base class processing
                 raise ServiceCallThrottlingException(f"OpenAI service is throttling requests: {str(e)}") from e
@@ -220,6 +136,31 @@ class OpenAILLMProvider(LLMProvider):
             # TODO: handle other error codes properly here
             
             raise ServiceCallException(f"OpenAI service error: {str(e)}") from e
+
+        # check for errors
+        if response.error is not None:
+            raise ServiceCallException(f"OpenAI service error {response.error.code}: {response.error.message}")
+
+        # check status. Statuses are: completed, failed, in_progress, cancelled, queued, or incomplete.
+        if response.status != "completed":
+            raise ServiceCallException(f"OpenAI service error, finished with status: {response.status}")
+
+        # get the output
+        output = response.output_text            
+
+        # update the tokens
+        tokens = ModelTokens(
+            input_tokens=response.usage.input_tokens,
+            cached_input_tokens=response.usage.input_tokens_details.cached_tokens,
+            output_tokens=response.usage.output_tokens,
+            reasoning_output_tokens=response.usage.output_tokens_details.reasoning_tokens,
+            total_tokens=response.usage.total_tokens,
+            # Store current price rates for historical accuracy
+            input_price_per_1m_tokens=self.model.input_price_per_1m_tokens,
+            cached_input_price_per_1m_tokens=self.model.cached_input_price_per_1m_tokens,
+            output_price_per_1m_tokens=self.model.output_price_per_1m_tokens,
+            reasoning_output_price_per_1m_tokens=self.model.reasoning_output_price_per_1m_tokens,
+        )
 
         return output, tokens
 
