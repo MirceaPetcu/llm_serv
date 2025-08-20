@@ -163,6 +163,9 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
                 detail={"error": "llm_service_exception", "message": f"Error processing chat request: {str(e)}"},
             ) from e
 
+    except HTTPException:
+        # Re-raise HTTPExceptions that were already properly handled by inner exception blocks
+        raise
     except Exception as e:
         logger.error(f"Unexpected exception: {str(e)}", exc_info=True)
         raise HTTPException(

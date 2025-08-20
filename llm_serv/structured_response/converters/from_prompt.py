@@ -2,7 +2,7 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 from llm_serv.structured_response.utils import camel_to_snake, coerce_text_to_type
-
+from llm_serv.logger import logger
 
 def from_prompt(self, xml_string: str) -> None:
     """
@@ -33,6 +33,8 @@ def from_prompt(self, xml_string: str) -> None:
     try:
         root_element = ET.fromstring(xml_sub)
     except ET.ParseError as exc:
+        logger.error(f"Invalid XML content: {exc}")
+        logger.error(f"XML content:\n{xml_sub}")
         raise ValueError(f"Invalid XML content: {exc}") from exc
 
     def parse_element(element: ET.Element, schema: Any) -> Any:
