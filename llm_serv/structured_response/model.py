@@ -26,6 +26,7 @@ class StructuredResponse:
     add_node = add_node
     serialize = serialize
     deserialize = deserialize
+    to_string = to_string
     __str__ = to_string
     
     @staticmethod

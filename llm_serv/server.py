@@ -1,5 +1,6 @@
 import os
 import time
+from urllib.parse import unquote
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -73,7 +74,7 @@ app = create_app()
 async def list_models(provider: str | None = None) -> list[Model]:
     try:
         logger.info("Listing models...")
-        models:list[Model] = LLMService.list_models(provider)
+        models: list[Model] = LLMService.list_models(provider)
         logger.info(f"Found {len(models)} models")
         return models
     except Exception as e:
@@ -82,6 +83,20 @@ async def list_models(provider: str | None = None) -> list[Model]:
             status_code=500, detail={"error": "registry_error", "message": f"Failed to retrieve model list: {str(e)}"}
         ) from e
 
+
+@app.get("/model_info/{model_id}")
+async def model_info(model_id: str) -> Model:
+    try:
+        # URL decode the model_id to handle special characters like / and \
+        decoded_model_id = unquote(model_id)
+        logger.info(f"Getting model info for {decoded_model_id}...")
+        model: Model = LLMService.get_model(decoded_model_id)
+        return model
+    except Exception as e:
+        logger.error(f"Failed to get model info: {str(e)}", exc_info=True)  
+        raise HTTPException(
+            status_code=500, detail={"error": "registry_error", "message": f"Failed to retrieve model info: {str(e)}"}
+        ) from e
 
 @app.get("/list_providers")
 async def list_providers() -> list[ModelProvider]:
@@ -105,7 +120,9 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
         # First of all, check if the model and providers are available
         try:
             assert model_provider in app.state.providers, f"Provider {model_provider} not found"
-            assert model_name in app.state.providers[model_provider], f"Model {model_name} not found in provider {model_provider}"
+            assert model_name in app.state.providers[model_provider], (
+                f"Model {model_name} not found in provider {model_provider}"
+            )
         except ValueError as e:
             logger.error(f"Model not found: {model_provider}/{model_name}")
             raise HTTPException(

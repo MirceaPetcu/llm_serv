@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import quote
 
 import httpx
 
@@ -132,6 +133,25 @@ class LLMServiceClient:
         
         except httpx.RequestError as e:
             self.logger.error(f"Failed to connect to server for list_models: {str(e)}", exc_info=True)
+            raise ServiceCallException(f"Failed to connect to server: {str(e)}") from e
+
+    async def get_model_info(self, model_id: str) -> Model:
+        """
+        Gets information about a specific model.
+        """
+        await self._ensure_client_initialized()
+        try:    
+            # URL encode the model_id to handle special characters like / and \
+            encoded_model_id = quote(model_id, safe='')
+            response = await self._client.get(f"/model_info/{encoded_model_id}")
+            if response.status_code != 200:
+                error_data = response.json()
+                error_msg = error_data.get("detail", {}).get("message", str(error_data))
+                self.logger.error(f"Failed to get model info (status {response.status_code}): {error_msg}")
+                raise ServiceCallException(f"Failed to get model info: {error_msg}")
+            return Model.model_validate(response.json())
+        except httpx.RequestError as e:
+            self.logger.error(f"Failed to connect to server for get_model_info: {str(e)}", exc_info=True)
             raise ServiceCallException(f"Failed to connect to server: {str(e)}") from e
 
     async def list_providers(self) -> list[str]:
