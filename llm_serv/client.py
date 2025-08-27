@@ -1,5 +1,4 @@
 import logging
-from urllib.parse import quote
 
 import httpx
 
@@ -141,9 +140,8 @@ class LLMServiceClient:
         """
         await self._ensure_client_initialized()
         try:    
-            # URL encode the model_id to handle special characters like / and \
-            encoded_model_id = quote(model_id, safe='')
-            response = await self._client.get(f"/model_info/{encoded_model_id}")
+            # Use query parameter instead of path parameter to avoid issues with encoded slashes
+            response = await self._client.get("/model_info", params={"model_id": model_id})
             if response.status_code != 200:
                 error_data = response.json()
                 error_msg = error_data.get("detail", {}).get("message", str(error_data))

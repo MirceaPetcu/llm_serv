@@ -1,6 +1,5 @@
 import os
 import time
-from urllib.parse import unquote
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -32,7 +31,9 @@ def create_app() -> FastAPI:
         for model in models:
             if model.provider.name not in app.state.providers:
                 app.state.providers[model.provider.name] = {}
-            assert model.name not in app.state.providers[model.provider.name], f"Model {model.name} already exists in provider {model.provider.name}!"
+            assert model.name not in app.state.providers[model.provider.name], (
+                f"Model {model.name} already exists in provider {model.provider.name}!"
+            )
             try:
                 app.state.providers[model.provider.name][model.name] = LLMService.get_provider(model)                
             except CredentialsException as e:
@@ -84,13 +85,11 @@ async def list_models(provider: str | None = None) -> list[Model]:
         ) from e
 
 
-@app.get("/model_info/{model_id}")
+@app.get("/model_info")
 async def model_info(model_id: str) -> Model:
     try:
-        # URL decode the model_id to handle special characters like / and \
-        decoded_model_id = unquote(model_id)
-        logger.info(f"Getting model info for {decoded_model_id}...")
-        model: Model = LLMService.get_model(decoded_model_id)
+        logger.info(f"Getting model info for {model_id}...")
+        model: Model = LLMService.get_model(model_id)
         return model
     except Exception as e:
         logger.error(f"Failed to get model info: {str(e)}", exc_info=True)  
