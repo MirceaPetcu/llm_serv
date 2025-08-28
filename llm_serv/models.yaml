@@ -19,6 +19,9 @@ PROVIDERS:
   OPENROUTER:
     name: OPENROUTER
     config: {}
+  TOGETHER:
+    name: TOGETHER
+    config: {}
 
 
 MODELS:
@@ -222,4 +225,19 @@ MODELS:
       output_price_per_1m_tokens: 0
       reasoning_output_price_per_1m_tokens: 0
     config: {}
-  
+    
+  TOGETHER/Llama-3.2-3B-Instruct-Turbo:
+    internal_model_id: meta-llama/Llama-3.2-3B-Instruct-Turbo
+    max_tokens: 128000
+    max_output_tokens: 4096
+    capabilities:
+      image_support: false
+      document_support: false
+      structured_output: true
+  # prices are mocked
+    price:
+      input_price_per_1m_tokens: 0.06
+      cached_input_price_per_1m_tokens: 0.06
+      output_price_per_1m_tokens: 0.06
+      reasoning_output_price_per_1m_tokens: 0.06
+    config: {}
