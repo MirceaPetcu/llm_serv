@@ -275,6 +275,10 @@ class LLMService:
                 from llm_serv.core.providers.openrouter import OpenRouterLLMProvider
                 return OpenRouterLLMProvider(model)
 
+            case "TOGETHER":
+                from llm_serv.core.providers.together import TogetherLLMProvider
+                return TogetherLLMProvider(model)
+
             case "MOCK":
                 from llm_serv.core.providers.mock import MockLLMProvider
                 return MockLLMProvider(model)
