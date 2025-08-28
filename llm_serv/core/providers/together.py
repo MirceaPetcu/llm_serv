@@ -112,6 +112,12 @@ class TogetherLLMProvider(LLMProvider):
 
         if config["top_p"] is not None:
             request_params["top_p"] = config["top_p"]
+
+        if self.model.thinking:
+            request_params["chat_template_kwargs"] = {"thinking": True}
+
+        if self.model.reasoning_effort is not None:
+            request_params["reasoning_effort"] = self.model.reasoning_effort
         
         # call the LLM provider using chat completions API                 
         try: 

@@ -57,16 +57,17 @@ async def main():
     print("All available models:", all_models)
 
     # 4. List models for a specific provider
-    aws_models = await client.list_models(provider="AWS")
-    print("AWS models:", aws_models)
+    aws_models = await client.list_models(provider="TOGETHER")
+    print("TOGETHER models:", aws_models)
 
     # 5. Set the model to use
     # Updated to use the new API with model_id in format "provider/name"
-    client.set_model("OPENAI/gpt-5-mini")    
+    #client.set_model("TOGETHER/DeepSeek-V3.1-thinking")    
+    client.set_model("TOGETHER/gpt-oss-120b-fp4-medium-reasoning")
     print("Model set to:", client.model_id)
 
     # 6. Create and send a chat request
-    conversation = Conversation.from_prompt("What's 1+1?")
+    conversation = Conversation.from_prompt("If A implies B, and B implies C, does A imply C?")
     request = LLMRequest(conversation=conversation)
     response = await client.chat(request)
 

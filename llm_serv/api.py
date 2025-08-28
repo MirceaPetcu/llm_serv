@@ -27,7 +27,15 @@ class Model(BaseModel):
     @property
     def name(self) -> str:
         return self.id.split("/")[1]
+
+    @property
+    def thinking(self) -> bool:
+        return self.capabilities.get("thinking", False)
     
+    @property
+    def reasoning_effort(self) -> str | None:
+        return self.capabilities.get("reasoning_effort", None)
+
     @property
     def provider_name(self) -> str:
         return self.id.split("/")[0]

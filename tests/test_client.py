@@ -12,7 +12,7 @@ async def main():
     all_models = await client.list_models()
 
     # Set the model to use
-    client.set_model("TOGETHER/Llama-3.2-3B-Instruct-Turbo")
+    client.set_model("TOGETHER/DeepSeek-V3.1-thinking")
 
     # Create and send a chat request
     conversation = Conversation.from_prompt("What's 1+1/21 + 3**2?")
