@@ -15,13 +15,13 @@ from llm_serv.structured_response.model import StructuredResponse
 class LLMResponse(BaseModel):    
     # Input parameters
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    response_model: StructuredResponse | None = None
-    native_response_format_used: bool | None = None
+    response_model: StructuredResponse | None = None    
 
     # Output parameters    
     raw_output: str | None = None    
     
     # Meta parameters
+    native_response_format_used: bool | None = None
     conversation: Conversation = Field(default_factory=lambda: Conversation())
     llm_model: Model | None = None
     tokens: TokenTracker = Field(default_factory=TokenTracker)    
