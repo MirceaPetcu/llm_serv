@@ -21,6 +21,9 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false \
     && poetry install --only main --no-interaction --no-ansi --no-root
 
+# due to dependency conflict with Pillow
+RUN pip install --upgrade together
+
 # Copy application code
 COPY llm_serv ./llm_serv
 
