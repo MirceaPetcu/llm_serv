@@ -1,60 +1,89 @@
 import uuid
+import json
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from llm_serv.api import Model
+from llm_serv.conversation.conversation import Conversation
 from llm_serv.core.components.request import LLMRequest
 from llm_serv.core.components.tokens import TokenTracker
+from llm_serv.core.exceptions import StructuredResponseException
 from llm_serv.structured_response.model import StructuredResponse
 
 
 class LLMResponse(BaseModel):    
+    # Input parameters
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    request: LLMRequest    
-    
-    output: StructuredResponse | str | None = None        
-    
+    response_model: StructuredResponse | None = None
     native_response_format_used: bool | None = None
-    tokens: TokenTracker = Field(default_factory=TokenTracker)
-    
-    llm_model: Model | None = None
 
+    # Output parameters    
+    raw_output: str | None = None    
+    
+    # Meta parameters
+    conversation: Conversation = Field(default_factory=lambda: Conversation())
+    llm_model: Model | None = None
+    tokens: TokenTracker = Field(default_factory=TokenTracker)    
     start_time: float | None = None  # time.time() as fractions of a second
     end_time: float | None = None  # time.time() as fractions of a second
-    total_duration: float | None = None  # time in seconds of the entire request, including retries (fractions included)
+    total_duration: float | None = None  # time in seconds of the entire request, including retries (fractions included)    
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @field_validator("output", mode="before")
+    
+    @field_serializer('response_model')
+    def serialize_response_model(self, value: StructuredResponse | None) -> dict[str, Any] | None:
+        """Serialize StructuredResponse using its serialize method."""
+        if value is None:
+            return None
+        # serialize() returns a JSON string, so we parse it back to dict for Pydantic
+        json_string = value.serialize()
+        return json.loads(json_string)
+    
+    @field_validator('response_model', mode='before')
     @classmethod
-    def _deserialize_output(cls, output):
-        """Deserialize the output field from JSON string back to StructuredResponse if needed."""
-        if output is None:
+    def deserialize_response_model(cls, value: Any) -> StructuredResponse | None:
+        """Deserialize StructuredResponse using its deserialize method."""
+        if value is None:
             return None
-        if isinstance(output, str):
-            try:
-                # Try to deserialize JSON string back to StructuredResponse
-                return StructuredResponse.deserialize(output)
-            except Exception:
-                # If deserialization fails, return as string
-                return output
-        # For StructuredResponse instances and other types, return as-is
-        return output
+        if isinstance(value, StructuredResponse):
+            return value
+        if isinstance(value, dict):
+            # Convert dict to JSON string for deserialize function
+            json_string = json.dumps(value)
+            from llm_serv.structured_response.converters.deserialize import deserialize
+            return deserialize(json_string)
+        if isinstance(value, str):
+            # Handle JSON string input
+            from llm_serv.structured_response.converters.deserialize import deserialize
+            return deserialize(value)
+        raise ValueError(f"Cannot deserialize response_model from type {type(value)}")
 
-    @field_serializer("output", when_used="json")
-    def _serialize_output(self, output):
-        """Serialize the output field for JSON output."""
-        if output is None:
+    @property
+    def output(self) -> StructuredResponse | str | None:
+        if self.raw_output is None:
             return None
-        if isinstance(output, StructuredResponse):
-            # Use the serialize method to convert to JSON string
-            return output.serialize()
-        # For strings and other types, return as-is
-        return output
+        
+        if self.response_model is None:
+            return self.raw_output
+
+        assert isinstance(self.response_model, StructuredResponse), f"Response model must be a StructuredResponse instance, got {type(self.response_model)}"  # noqa: E501
+        try:
+            return self.response_model.from_prompt(self.raw_output)               
+        except Exception as e:
+            raise StructuredResponseException(
+                message=f"Failed to convert LLM output to structured format: {e}",
+                xml=self.raw_output,
+                return_class=str(type(self.response_model))
+            ) from e
 
     @classmethod
     def from_request(cls, request: LLMRequest) -> "LLMResponse":
-        response = LLMResponse(request=request)
+        response = LLMResponse(
+            id = request.id,
+            response_model = request.response_model,
+            conversation = request.conversation
+        )
         return response
 
     def rprint(self, subtitle: str | None = None):
@@ -91,11 +120,11 @@ class LLMResponse(BaseModel):
             content_parts = []
             
             # Add system message if present
-            if self.request.conversation.system:
-                content_parts.append(f"[bold dark_magenta][SYSTEM][/bold dark_magenta] [dark_magenta]{self.request.conversation.system}[/dark_magenta]")  # noqa: E501
+            if self.conversation.system:
+                content_parts.append(f"[bold dark_magenta][SYSTEM][/bold dark_magenta] [dark_magenta]{self.conversation.system}[/dark_magenta]")  # noqa: E501
             
             # Process conversation messages
-            for message in self.request.conversation.messages:
+            for message in self.conversation.messages:
                 if message.role == Role.USER:
                     content_parts.append(f"[bold dark_blue][USER][/bold dark_blue] [dark_blue]{message.text}[/dark_blue]")
                 elif message.role == Role.ASSISTANT:
@@ -159,15 +188,15 @@ class LLMResponse(BaseModel):
                     and hasattr(self.request, "conversation")
                 ):
                     if (
-                        hasattr(self.request.conversation, "system")
-                        and self.request.conversation.system
+                        hasattr(self.conversation, "system")
+                        and self.conversation.system
                     ):
                         rprint(
-                            f"[dark_magenta]System: {self.request.conversation.system}[/dark_magenta]"
+                            f"[dark_magenta]System: {self.conversation.system}[/dark_magenta]"
                         )
 
-                    if hasattr(self.request.conversation, "messages"):
-                        for msg in self.request.conversation.messages:
+                    if hasattr(self.conversation, "messages"):
+                        for msg in self.conversation.messages:
                             role = getattr(msg, "role", "unknown")
                             text = getattr(msg, "text", "no text")
                             rprint(f"[blue]{role}: {text}[/blue]")

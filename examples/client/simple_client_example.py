@@ -72,6 +72,11 @@ async def main():
     response = await client.chat(request)
 
     rprint("Full Response:", response)
+
+    rprint("Output type:", type(response.output))
+
+    rprint("Output:", response.output)
+
     rprint("Token Usage:", response.tokens)
 
 

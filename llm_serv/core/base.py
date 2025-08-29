@@ -53,11 +53,10 @@ class LLMProvider(abc.ABC):
         Automatically handles the provider's async client initialization.
         """
         await self.start()
-
-        # TODO proper validation of request        
+      
         match request.request_type:
             case LLMRequestType.LLM:
-                return await self.__llm_handler(request)
+                return await self.__llm_handler(request=request)
             case LLMRequestType.OCR:
                 pass
             case LLMRequestType.IMAGE:
@@ -106,7 +105,7 @@ class LLMProvider(abc.ABC):
 
 
     async def __llm_handler(self, request: LLMRequest) -> LLMResponse:
-        first_attempt_time = time.time() # Record start time before any attempt
+        first_attempt_time = time.time()  # Record start time before any attempt
 
         try:
             response: LLMResponse = LLMResponse.from_request(request)
@@ -118,43 +117,16 @@ class LLMProvider(abc.ABC):
 
             # Execute the service call through the retry wrapper
             # Note: Only ServiceCallThrottlingException will be retried internally by the wrapper
-            output, model_tokens = await self.__retry_wrapper(coro_func=service_call_coro)
+            raw_output, model_tokens = await self.__retry_wrapper(coro_func=service_call_coro)
 
             # Check if the wrapper returned None unexpectedly (should raise instead)
-            if output is None:
+            if raw_output is None:
                 raise ServiceCallException(
                     "LLM service call failed to return output after retries, without raising a specific exception."
                 )
             
-            response.output = output  # assign initial string output
-
-            """
-            If the response format is specified and the response class is not a string,
-            attempt to convert the text output to the desired StructuredResponse class.
-            Raises StructuredResponseException if the conversion fails.
-            """
-            if request.response_model is not None:
-                try:
-                    # Handle both StructuredResponse instances and serialized strings
-                    if isinstance(request.response_model, str):
-                        # Deserialize JSON string to StructuredResponse
-                        structured_response = StructuredResponse.deserialize(request.response_model)
-                    elif isinstance(request.response_model, StructuredResponse):
-                        structured_response = request.response_model
-                    else:
-                        structured_response = None
-                    
-                    if structured_response:
-                        structured_response.from_prompt(output)
-                        response.output = structured_response
-                except Exception as conversion_error:
-                    # Wrap potential conversion errors in a specific exception type
-                    raise StructuredResponseException(
-                        message=f"Failed to convert LLM output to structured format: {conversion_error}",
-                        xml=output,
-                        return_class=str(type(request.response_model))
-                    ) from conversion_error
-
+            response.raw_output = raw_output  # assign initial string output
+         
             response.tokens.add(self.model.id, model_tokens)
 
             response.end_time = time.time()

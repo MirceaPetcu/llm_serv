@@ -1,4 +1,6 @@
 import uuid
+import json
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
@@ -19,78 +21,32 @@ class LLMRequest(BaseModel):
     top_p: float | None = None
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @field_validator("response_model", mode="before")
+    
+    @field_serializer('response_model')
+    def serialize_response_model(self, value: StructuredResponse | None) -> dict[str, Any] | None:
+        """Serialize StructuredResponse using its serialize method."""
+        if value is None:
+            return None
+        # serialize() returns a JSON string, so we parse it back to dict for Pydantic
+        json_string = value.serialize()
+        return json.loads(json_string)
+    
+    @field_validator('response_model', mode='before')
     @classmethod
-    def _deserialize_response_model(cls, response_model):
-        """
-        Accepts response_model as a StructuredResponse instance, a JSON string
-        produced by StructuredResponse.serialize(), or a plain dict with keys
-        matching the StructuredResponse dataclass, and converts it to a
-        StructuredResponse instance for internal usage.
-        """
-        from llm_serv.structured_response.model import StructuredResponse as SR
-
-        if response_model is None:
+    def deserialize_response_model(cls, value: Any) -> StructuredResponse | None:
+        """Deserialize StructuredResponse using its deserialize method."""
+        if value is None:
             return None
-        if isinstance(response_model, SR):
-            return response_model
-        if isinstance(response_model, str):
-            try:
-                # Use the deserialize method to convert JSON string back to StructuredResponse
-                return SR.deserialize(response_model)
-            except Exception:
-                return response_model
-        if isinstance(response_model, dict):
-            try:
-                return SR(
-                    class_name=response_model.get("class_name", "StructuredResponse"),
-                    definition=response_model.get("definition"),
-                    instance=response_model.get("instance"),
-                )
-            except Exception:
-                return response_model
-        return response_model
+        if isinstance(value, StructuredResponse):
+            return value
+        if isinstance(value, dict):
+            # Convert dict to JSON string for deserialize function
+            json_string = json.dumps(value)
+            from llm_serv.structured_response.converters.deserialize import deserialize
+            return deserialize(json_string)
+        if isinstance(value, str):
+            # Handle JSON string input
+            from llm_serv.structured_response.converters.deserialize import deserialize
+            return deserialize(value)
+        raise ValueError(f"Cannot deserialize response_model from type {type(value)}")
 
-    @field_serializer("response_model", when_used="json")
-    def _serialize_response_model(self, response_model):
-        """
-        Serialize the response_model for JSON output.
-        - If it's a StructuredResponse instance, use its serialize() method
-        - If it's a class (Pydantic BaseModel or a plain class derived from StructuredResponse),
-          build a StructuredResponse via from_basemodel() and serialize it
-        - If it's a Pydantic BaseModel instance, convert via from_basemodel() and serialize
-        - If it's already a string (assumed pre-serialized), pass it through
-        - Otherwise, return None
-        """
-        from llm_serv.structured_response.model import StructuredResponse as SR
-
-        if response_model is None:
-            return None
-
-        # Already a StructuredResponse instance - serialize to JSON string
-        if isinstance(response_model, SR):
-            return response_model.serialize()
-
-        # If a class/type (e.g., Pydantic BaseModel subclass or plain class inheriting SR)
-        if isinstance(response_model, type):
-            try:
-                sr_obj = SR.from_basemodel(response_model)
-                return sr_obj.serialize()
-            except Exception as e:
-                raise ValueError(f"Response model {response_model} is not serializable: {e}") from e
-
-        # If it's a Pydantic BaseModel instance
-        if isinstance(response_model, BaseModel) or hasattr(response_model, "model_dump"):
-            try:
-                sr_obj = SR.from_basemodel(response_model)
-                return sr_obj.serialize()
-            except Exception as e:
-                raise ValueError(f"Response model {response_model} is not serializable: {e}") from e
-
-        # If it's already a string, assume it's a pre-serialized representation
-        if isinstance(response_model, str):
-            return response_model
-
-        # Fallback: not serializable
-        raise ValueError(f"Response model {response_model} is not serializable")

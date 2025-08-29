@@ -80,7 +80,7 @@ async def main():
         print("Request created")
         
         # 5. Get response with a timeout
-        print("Sending request to API...")
+        print("Sending direct API request ...")
         try:
             response = await asyncio.wait_for(llm_service(request), timeout=30.0)
             

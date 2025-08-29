@@ -7,7 +7,7 @@ from llm_serv.logger import logger
 from llm_serv.structured_response.utils import camel_to_snake, coerce_text_to_type
 
 
-def from_prompt(self, xml_string: str) -> None:
+def from_prompt(self, xml_string: str) -> "StructuredResponse":
     """
     Parse an LLM answer string, extract the XML section for the root element, and
     populate the instance dictionary according to the definition schema.
@@ -116,6 +116,7 @@ def from_prompt(self, xml_string: str) -> None:
             continue
         self.instance[field_name] = parse_element(child, schema)
 
+    return self
 
 def _preprocess_xml(xml_string: str) -> str:
     """
