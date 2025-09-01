@@ -39,7 +39,7 @@ class WeatherPrognosis(BaseModel):
 
 
 async def main():
-    model = LLMService.get_model("OPENAI/gpt-5-mini")
+    model = LLMService.get_model("GOOGLE/gemini-2.5-flash")    
     llm_service = LLMService.get_provider(model)
 
     response_model = StructuredResponse.from_basemodel(WeatherPrognosis)

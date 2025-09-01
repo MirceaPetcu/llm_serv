@@ -23,19 +23,24 @@ class GoogleLLMProvider(LLMProvider):
         Uses the Application Default Credentials (ADC) approach with required environment variables.
         """
         required_variables = [
-            "GOOGLE_CLOUD_PROJECT", 
-            "GOOGLE_CLOUD_LOCATION",
+            ["GOOGLE_API_KEY"],
+            ["GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"],
         ]
-        
+                
         missing_vars = []
-        for var in required_variables:
-            if not os.getenv(var):
-                missing_vars.append(var)
+        ok = False
+        for credential_set in required_variables:
+            set_is_ok = True
+            for var in credential_set:
+                if not os.getenv(var):
+                    set_is_ok = False                    
+            if set_is_ok:
+                ok = True
+                break
         
-        if missing_vars:
+        if not ok:
             raise CredentialsException(
-                f"Missing required environment variables for Google Vertex AI: {', '.join(missing_vars)}. "
-                f"Set up authentication using gcloud CLI or service account key."
+                f"Missing required environment variables for Gemini or Google Vertex AI. Either set GOOGLE_API_KEY or the following: {', '.join(missing_vars)}"  # noqa: E501
             )
 
     def __init__(self, model: Model):
@@ -43,8 +48,10 @@ class GoogleLLMProvider(LLMProvider):
         
         GoogleLLMProvider.check_credentials()
         
-        self._project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+        self._google_api_key = os.getenv("GOOGLE_API_KEY", None)
+        self._project_id = os.getenv("GOOGLE_CLOUD_PROJECT", None)
         self._location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        
         self._client = None
 
     async def start(self):
@@ -52,11 +59,20 @@ class GoogleLLMProvider(LLMProvider):
         Initialize the Google GenAI client for Vertex AI.
         """
         if self._client is None:
-            self._client = genai.Client(
-                vertexai=True,
-                project=self._project_id,
-                location=self._location
-            )
+            if self._google_api_key:
+                self._client = genai.Client(
+                    api_key=self._google_api_key
+                )
+            elif self._project_id and self._location:
+                self._client = genai.Client(
+                    vertexai=True,
+                    project=self._project_id,
+                    location=self._location
+                )
+            else:
+                raise CredentialsException(
+                    "Missing required environment variables for Gemini or Google Vertex AI. Either set GOOGLE_API_KEY or the following: {', '.join(missing_vars)}"  # noqa: E501
+                )
 
     async def stop(self):
         """
