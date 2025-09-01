@@ -34,8 +34,8 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
 
     # Ensure the opening tag is well-formed (strip attributes if any are present)
     try:
-        #root_element = ET.fromstring(xml_sub)
-        root_element = sloppy_xml.tree_parse(xml_sub)
+        root_element = ET.fromstring(xml_sub)
+        # root_element = sloppy_xml.tree_parse(xml_sub)
     except ET.ParseError as exc:
         logger.error(f"Invalid XML content: {exc}")
         logger.error(f"XML content:\n{xml_sub}")
