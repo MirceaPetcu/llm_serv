@@ -13,11 +13,10 @@ Natural gas leads the way, so clear,<ref id='9'/>
 Fifty-nine percent, holding dear.<ref id='9'/>
 Twenty-four thousand one twenty MW strong,<ref id='10'/>
 Fueling progress all day long.<ref id='10'/>
-
-  </poem>
-  <poem_citations type='list' elements='int' description='Citation aggregator list & refs for 'poem'. ALL citations (ids-integers) referenced in the 'poem' field must be added to this list as well. All the ref ids MUST exist in both 'poem' (as ref tags) and 'poem_citations' (as an integer list) fields.'>
+</poem>
+  <poem_citations type='list' elements='int' description='Citation aggregator list & refs for 'poem'. ALL citations (ids-integers) referenced in the 'poem' field must be added to this list as well. All the ref ids MUST exist in both 'poem' (as ref tags) and 'poem_citations' (as an integer list) fields. use <ref id='1'/>'>
     <li>8</li>
-    <li>9</li></poem_citations>
+    <li>9</li>
 </company_description>
 """
 
