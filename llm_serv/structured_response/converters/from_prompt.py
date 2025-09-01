@@ -1,10 +1,17 @@
 from typing import Any
 from xml.etree import ElementTree as ET
 
-import sloppy_xml
 
 from llm_serv.logger import logger
 from llm_serv.structured_response.utils import camel_to_snake, coerce_text_to_type
+import re
+
+
+def _preprocess_xml(xml_string: str) -> str:
+    """
+    Preprocess the XML string to remove any comments and other non-essential content.
+    """
+    return xml_string
 
 
 def from_prompt(self, xml_string: str) -> "StructuredResponse":
@@ -30,46 +37,42 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
         raise ValueError(f"Root XML tags <{root_tag}> not found in LLM output")
     # Move end to include closing tag
     end_idx += len(f"</{root_tag}>")
-    xml_sub = xml_string[start_idx:end_idx]
+    xml_sub = xml_string[start_idx + len(f"<{root_tag}"):end_idx - len(f"</{root_tag}>")]
 
-    # Ensure the opening tag is well-formed (strip attributes if any are present)
-    try:
-        root_element = ET.fromstring(xml_sub)
-        # root_element = sloppy_xml.tree_parse(xml_sub)
-    except ET.ParseError as exc:
-        logger.error(f"Invalid XML content: {exc}")
-        logger.error(f"XML content:\n{xml_sub}")
-        raise ValueError(f"Invalid XML content: {exc}") from exc
 
-    def parse_element(element: ET.Element, schema: Any) -> Any:
+    def parse_element(element: str, schema: Any) -> Any:
         """Parse an XML element according to its schema definition."""
         
         if isinstance(schema, dict) and schema.get("type") == "list":
+            # extract only root level lis
+            lis = extract_root_level_lis(element)
             # List parsing from <li> children
             items: list[Any] = []
-            for li in element.findall("li"):
+            for li in lis:
                 elem_schema = schema.get("elements")
                 if isinstance(elem_schema, dict):
                     # Complex list item: dict with multiple fields
                     item: dict[str, Any] = {}
-                    # Initialize all fields from schema to None first
-                    for field_name in elem_schema.keys():
+                    elem_schema_list = list(elem_schema.items())
+                    previous_offset = 0
+                    # iterate over the field of the li element and parse them recursively
+                    for idx, (field_name, field_schema) in enumerate(elem_schema_list):
                         item[field_name] = None
-                    # Then populate with actual values
-                    for child in li:
-                        if child.tag == "li":
+                        child, start_offset_child = find_tags(xml_string=li,
+                                                    tag_name=field_name, 
+                                                    previous_offset=previous_offset, 
+                                                    definition=elem_schema_list,
+                                                    idx=idx)
+                        if child is None:
+                            item[field_name] = None
                             continue
-                        if child.tag is ET.Comment:
-                            continue
-                        field_schema = elem_schema.get(child.tag)
-                        if field_schema is None:
-                            # Skip unknown fields
-                            continue
-                        item[child.tag] = parse_element(child, field_schema)
+                        previous_offset = start_offset_child
+                        field_schema = elem_schema.get(field_name)
+                        item[field_name] = parse_element(child, field_schema)
                     items.append(item)
                 else:
                     # Simple list item: direct text content
-                    items.append(coerce_text_to_type(li.text or "", str(elem_schema)))
+                    items.append(coerce_text_to_type(li or "", str(elem_schema)))
             return items
 
         if isinstance(schema, dict) and schema.get("type") == "dict":
@@ -77,53 +80,182 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
             obj: dict[str, Any] = {}
             elements_schema = schema.get("elements", {})
             if isinstance(elements_schema, dict):
-                for field_name, field_schema in elements_schema.items():
-                    child = element.find(field_name)
+                elements_schema_list = list(elements_schema.items())
+                previous_offset = 0
+                # iterate over the field of the dict element and parse them recursively
+                for idx, (field_name, field_schema) in enumerate(elements_schema_list):
+                    child, start_offset_child = find_tags(xml_string=element,
+                                     tag_name=field_name,
+                                     previous_offset=previous_offset,
+                                     definition=elements_schema_list,
+                                     idx=idx)
+                    field_schema = elements_schema.get(field_name)
                     if child is None:
                         obj[field_name] = None
                         continue
+                    previous_offset = start_offset_child
                     obj[field_name] = parse_element(child, field_schema)
             return obj
 
-        if isinstance(schema, dict) and "type" not in schema:
-            # Legacy nested object: parse each child according to schema
-            obj: dict[str, Any] = {}
-            for field_name, field_schema in schema.items():
-                child = element.find(field_name)
-                if child is None:
-                    obj[field_name] = None
-                    continue
-                obj[field_name] = parse_element(child, field_schema)
-            return obj
+        # Deprecated
+        # if isinstance(schema, dict) and "type" not in schema:
+        #     # Legacy nested object: parse each child according to schema
+        #     obj: dict[str, Any] = {}
+        #     for field_name, field_schema in schema.items():
+        #         child = element.find(field_name)
+        #         if child is None:
+        #             obj[field_name] = None
+        #             continue
+        #         obj[field_name] = parse_element(child, field_schema)
+        #     return obj
 
         # Simple field (str, int, float, bool, enum)
         if not isinstance(schema, dict):
             # Handle case where schema is just a type string
-            return coerce_text_to_type(element.text or "", str(schema))
+            return coerce_text_to_type(element or "", str(schema))
             
         type_name = schema.get("type", "str")
         # For enum treat as str
         if type_name == "enum":
-            return (element.text or "").strip()
-        return coerce_text_to_type(element.text or "", type_name)
+            return (element or "").strip()
+        return coerce_text_to_type(element or "", type_name)
 
     # Parse root element fields
     self.instance = {}
-    for field_name, schema in self.definition.items():
-        child = root_element.find(field_name)
+    definition = list(self.definition.items())
+    previous_offset = 0
+    for idx, (field_name, schema) in enumerate(definition):
+        # extract the tag with the given name
+        child, next_offset = find_tags(xml_sub, field_name, previous_offset, definition, idx)
         if child is None:
             self.instance[field_name] = None
             continue
+        # parse the element recursively (if necessary)
         self.instance[field_name] = parse_element(child, schema)
+        previous_offset = next_offset
 
     return self
 
-def _preprocess_xml(xml_string: str) -> str:
-    """
-    Preprocess the XML string to remove any comments and other non-essential content.
-    """
-    return xml_string
 
+def find_tags(xml_string: str, 
+                tag_name: str, 
+                previous_offset: int,
+                definition: list[tuple[str, Any]],
+                idx: int,
+                preserve_inner_tags: bool = True) -> ET.Element:
+    """
+    Find all tags with the given name in the XML string.
+    """
+    # search for the tag with the given name 
+    # the method permit to have an un-closed tag with the given name
+    # it is manadatory to have the starting tag in the xml string
+    pattern = rf'<{tag_name}\s*[^>]*>(.*?)(?:<{tag_name}>|</{tag_name}>)'
+    match = re.search(pattern, xml_string[previous_offset:], re.DOTALL)
+    
+    if match:
+        content = match.group(1)
+        
+        if preserve_inner_tags:
+            return content.strip(), match.end()
+        else:
+            # Remove all inner tags but keep their text content
+            return re.sub(r'<[^>]+>', '', content).strip(), match.end()
+    else:
+        # if it is not found, we first search for the position of the starting tag
+        start_offset = re.search(rf'<{tag_name}\s*[^>]*>', xml_string[previous_offset:], re.DOTALL)
+        if start_offset is None:
+            return None, None
+        start_offset = start_offset.end()
+        # search for the most close tag, with the position bigger than the starting tag's position
+        next_tag_start = find_most_close_tag(xml_string, definition, start_offset + previous_offset)
+        if next_tag_start is not None:
+            return xml_string[previous_offset + start_offset: next_tag_start], next_tag_start - 1
+        return None, None
+
+
+def find_most_close_tag(xml_string: str, definition: list[tuple[str, Any]], current_start_offset: int) -> int:
+    """
+    find the most close tag, with the position bigger than the starting tag's position
+    """
+    min_start_offset = float('inf')
+    for field_name, schema in definition:
+        start_offset = find_next_tag(xml_string, field_name)
+        if start_offset is not None and start_offset > current_start_offset:
+            min_start_offset = min(min_start_offset, start_offset)
+    return len(xml_string) if min_start_offset == float('inf') else min_start_offset
+
+
+def find_next_tag(xml_string: str, tag_name: str):
+    """
+    Searches for the next tag with the given name. It returns the position of the starting tag.
+    """
+    pattern = rf'<{tag_name}\s*[^>]*>'
+    match = re.search(pattern, xml_string)
+    
+    if match:
+        return match.start()
+    return None
+    
+
+def extract_root_level_lis(xml_string: str) -> list[str]:
+    """
+    Extract only root-level <li> elements using pure regex.
+    No XML auto-correction - works with malformed XML as-is.
+    """
+    
+    li_elements = []
+    pos = 0
+    
+    while pos < len(xml_string):
+        # Find next <li> opening tag
+        li_match = re.search(r'<li\s*[^>]*>', xml_string[pos:])
+        if not li_match:
+            break
+            
+        li_start = pos + li_match.start()
+        li_content_start = pos + li_match.end()
+        
+        # Use balanced tag counting to find matching </li>
+        li_count = 1
+        search_pos = li_content_start
+        content_end = len(xml_string)  # Default to end if no closing tag
+        
+        while search_pos < len(xml_string) and li_count > 0:
+            # Look for next <li> or </li>
+            next_open = re.search(r'<li\s*[^>]*>', xml_string[search_pos:])
+            next_close = re.search(r'</li>', xml_string[search_pos:])
+            
+            open_pos = search_pos + next_open.start() if next_open else float('inf')
+            close_pos = search_pos + next_close.start() if next_close else float('inf')
+            
+            if open_pos < close_pos:
+                # Found nested opening <li>
+                li_count += 1
+                search_pos = open_pos + len(next_open.group())
+            elif close_pos < float('inf'):
+                # Found closing </li>
+                li_count -= 1
+                if li_count == 0:
+                    # This is our matching closing tag
+                    content_end = close_pos
+                    pos = close_pos + 5  # Move past </li>
+                    break
+                search_pos = close_pos + 5
+            else:
+                # No more tags found - unclosed <li>
+                break
+        
+        # Extract content between opening and closing tags
+        content = xml_string[li_content_start:content_end]
+        li_elements.append(content)
+        
+        # If we didn't find a closing tag, move past this <li> to avoid infinite loop
+        if li_count > 0:
+            pos = li_content_start + 1
+    
+    return li_elements
+
+# ------------------------------------------------------------
 
 if __name__ == "__main__":
     xml_string = """
@@ -157,6 +289,3 @@ if __name__ == "__main__":
     print(_preprocess_xml(xml_string))
 
     
-
-    output = sloppy_xml.tree_parse(xml_string)
-    print(output)
