@@ -1,4 +1,5 @@
 import pytest
+
 from enum import Enum
 from typing import Optional, Union
 from pydantic import BaseModel, Field
@@ -147,6 +148,7 @@ def test_simple_parsing():
     assert result.instance['fiscal_year'] == 2024
     assert result.instance['total_budget'] == 50000000.0
     assert result.instance['active'] is True
+    print("✓ Simple parsing test passed")
 
 
 def test_complex_nested_structure():
@@ -586,6 +588,7 @@ def test_complex_nested_structure():
     assert result.instance['global_contacts'][1]['method'] == "phone"
     assert result.instance['global_contacts'][1]['value'] == "+1-555-0100"
     assert result.instance['global_contacts'][1]['primary'] is False
+    print("✓ Complex nested structure test passed")
 
 
 def test_malformed_xml_handling():
@@ -1048,14 +1051,7 @@ def test_malformed_xml_handling():
     assert project['risk_factors'][4] == "Data privacy concerns"
     assert project['risk_factors'][5] == "Scalability challenges"
     assert result.instance['board_members'] == ["Dr. Richard Thompson", "Prof. Maria Rodriguez", "James Wilson III", "Lisa Kim", "Michael O'Brien"]
-    # assert project['metadata']['created_by'] == "John Smith"
-    # assert project['metadata']['last_updated'] == "2024-03-15"
-    # assert project['metadata']['version'] == "1.2.0"
-    # assert project['metadata']['environment'] == "production"
-    # assert project['metadata']['compliance_level'] == "enterprise"
-    # assert project['metadata']['security_clearance'] == "confidential"
-    
-    # Test nested objects within lists
+
     task = project['tasks'][0]
     assert task['title'] == "Design AI Architecture"
     assert task['status'] == "completed"
@@ -1112,6 +1108,7 @@ def test_malformed_xml_handling():
     assert result.instance['global_contacts'][1]['method'] == "phone"
     assert result.instance['global_contacts'][1]['value'] == "+1-555-0100"
     assert result.instance['global_contacts'][1]['primary'] is False
+    print("✓ Malformed XML handling test passed")
 
 
 def test_edge_cases_and_empty_values():
@@ -1151,6 +1148,7 @@ def test_edge_cases_and_empty_values():
     assert result.instance['projects'] == []
     assert result.instance['global_contacts'] == []
     assert result.instance['strategic_priorities'] == []
+    print("✓ Edge cases test passed")
 
 
 def test_special_characters_and_encoding():
@@ -1186,6 +1184,7 @@ def test_special_characters_and_encoding():
     assert result.instance['strategic_priorities'][0] == "Iñtërnâtiônàlizàtiôn"
     assert result.instance['strategic_priorities'][1] == "Security & Compliance"
     assert result.instance['strategic_priorities'][2] == "AI/ML & Data Science"
+    print("✓ Special characters test passed")
 
 
 class ChanceScale(Enum):
@@ -1253,10 +1252,8 @@ def test_weather_prognosis():
             """
     sr: StructuredResponse = StructuredResponse.from_basemodel(WeatherPrognosis)
 
-    sr.from_prompt(s)
+    sr = sr.from_prompt(s)
 
-    from pprint import pprint 
-    # pprint(sr.instance)
     assert sr.instance['rain_probability'][0]['chance'] == "high"
     assert sr.instance['rain_probability'][0]['when'] == "morning"
     assert sr.instance['rain_probability'][1]['chance'] == "low"
@@ -1268,26 +1265,9 @@ def test_weather_prognosis():
     assert sr.instance['low'] == 5.0
     assert sr.instance['storm_tonight'] is False
     assert sr.instance['windspeed'] == [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0]
+    print("✓ Weather prognosis test passed")
 
 
 if __name__ == "__main__":
-    # Run basic tests
-    # test_simple_parsing()
-    # print("✓ Simple parsing test passed")
-    # exit()
-    # test_complex_nested_structure()
-    # print("✓ Complex nested structure test passed")
-    # exit()
-    test_malformed_xml_handling()
-    print("✓ Malformed XML handling test passed")
-    test_edge_cases_and_empty_values()
-    print("✓ Edge cases test passed")
-    
-    test_special_characters_and_encoding()
-    print("✓ Special characters test passed")
-    
-    test_weather_prognosis()
-    print("✓ Weather prognosis test passed")
-    
-    print("\n🎉 All tests passed!")
+    pytest.main([__file__])
 
