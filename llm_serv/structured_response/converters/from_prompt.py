@@ -46,7 +46,7 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
         if isinstance(schema, dict) and schema.get("type") == "list":
             # extract only root level lis
             lis = extract_root_level_lis(element)
-            # List parsing from <li> children
+            # iterate over the lis and parse them recursively
             items: list[Any] = []
             for li in lis:
                 elem_schema = schema.get("elements")
@@ -62,7 +62,7 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
                                                     tag_name=field_name, 
                                                     previous_offset=previous_offset, 
                                                     definition=elem_schema_list,
-                                                    idx=idx)
+                                                    )
                         if child is None:
                             item[field_name] = None
                             continue
@@ -88,7 +88,7 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
                                      tag_name=field_name,
                                      previous_offset=previous_offset,
                                      definition=elements_schema_list,
-                                     idx=idx)
+                                     )
                     field_schema = elements_schema.get(field_name)
                     if child is None:
                         obj[field_name] = None
@@ -124,9 +124,9 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
     self.instance = {}
     definition = list(self.definition.items())
     previous_offset = 0
-    for idx, (field_name, schema) in enumerate(definition):
+    for _, (field_name, schema) in enumerate(definition):
         # extract the tag with the given name
-        child, next_offset = find_tags(xml_sub, field_name, previous_offset, definition, idx)
+        child, next_offset = find_tags(xml_sub, field_name, previous_offset, definition)
         if child is None:
             self.instance[field_name] = None
             continue
@@ -140,11 +140,12 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
 def find_tags(xml_string: str, 
                 tag_name: str, 
                 previous_offset: int,
-                definition: list[tuple[str, Any]],
-                idx: int,
-                preserve_inner_tags: bool = True) -> ET.Element:
+                definition: list[tuple[str, any]],
+                preserve_inner_tags: bool = True) -> tuple[str, int] | tuple[None, None]:
     """
-    Find all tags with the given name in the XML string.
+    Find the content of the tag with the given name in the XML string.
+    It first search for the tag with the given name and return the content of the tag.
+    If the closing tag is not found, it search for the closest tag and return the content to the closest tag.
     """
     # search for the tag with the given name 
     # the method permit to have an un-closed tag with the given name
@@ -175,7 +176,7 @@ def find_tags(xml_string: str,
 
 def find_most_close_tag(xml_string: str, definition: list[tuple[str, Any]], current_start_offset: int) -> int:
     """
-    find the most close tag, with the position bigger than the starting tag's position
+    find the closest tag, with the position bigger than the starting tag's position
     """
     min_start_offset = float('inf')
     for field_name, schema in definition:
