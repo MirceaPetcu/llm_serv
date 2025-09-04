@@ -130,9 +130,9 @@ class OpenAILLMProvider(LLMProvider):
 
             # update the tokens
             tokens = ModelTokens(
-                input_tokens=response.usage.input_tokens,
+                input_tokens=response.usage.input_tokens - response.usage.input_tokens_details.cached_tokens,
                 cached_input_tokens=response.usage.input_tokens_details.cached_tokens,
-                output_tokens=response.usage.output_tokens,
+                output_tokens=response.usage.output_tokens - response.usage.output_tokens_details.reasoning_tokens,
                 reasoning_output_tokens=response.usage.output_tokens_details.reasoning_tokens,
                 total_tokens=response.usage.total_tokens,
                 # Store current price rates for historical accuracy
