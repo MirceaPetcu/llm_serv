@@ -62,8 +62,8 @@ async def main():
 
     # 5. Set the model to use
     # Updated to use the new API with model_id in format "provider/name"
-    #client.set_model("TOGETHER/DeepSeek-V3.1-thinking")    
-    client.set_model("TOGETHER/gpt-oss-120b-fp4-medium-reasoning")
+    client.set_model("TOGETHER/DeepSeek-V3.1-thinking")    
+    #client.set_model("TOGETHER/gpt-oss-120b-fp4-medium-reasoning")
     print("Model set to:", client.model_id)
 
     # 6. Create and send a chat request

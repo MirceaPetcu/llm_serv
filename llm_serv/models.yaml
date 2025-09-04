@@ -236,7 +236,7 @@ MODELS:
   TOGETHER/DeepSeek-V3.1:
     internal_model_id: deepseek-ai/DeepSeek-V3.1
     max_tokens: 128000
-    max_output_tokens: 4096
+    max_output_tokens: 8000
     price:
       input_price_per_1m_tokens: 0.60      
       output_price_per_1m_tokens: 1.70
@@ -246,7 +246,7 @@ MODELS:
   TOGETHER/DeepSeek-V3.1-thinking:
     internal_model_id: deepseek-ai/DeepSeek-V3.1
     max_tokens: 128000
-    max_output_tokens: 4096
+    max_output_tokens: 32768
     capabilities:    
       thinking: true
     price:
@@ -258,7 +258,7 @@ MODELS:
   TOGETHER/DeepSeek-R1:
     internal_model_id: deepseek-ai/DeepSeek-R1
     max_tokens: 128000
-    max_output_tokens: 4096
+    max_output_tokens: 8096
     capabilities:
       image_support: false
       document_support: false
@@ -272,7 +272,7 @@ MODELS:
   TOGETHER/gpt-oss-120b-fp4-low-reasoning:
     internal_model_id: openai/gpt-oss-120b
     max_tokens: 128000
-    max_output_tokens: 4096
+    max_output_tokens: 8000
     capabilities:
       structured_output: true
       reasoning_effort: low
@@ -283,7 +283,7 @@ MODELS:
   TOGETHER/gpt-oss-120b-fp4-medium-reasoning:
     internal_model_id: openai/gpt-oss-120b
     max_tokens: 128000
-    max_output_tokens: 4096
+    max_output_tokens: 8000
     capabilities:
       structured_output: true
       reasoning_effort: medium
