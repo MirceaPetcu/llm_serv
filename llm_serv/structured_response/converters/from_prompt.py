@@ -97,18 +97,6 @@ def from_prompt(self, xml_string: str) -> "StructuredResponse":
                     obj[field_name] = parse_element(child, field_schema)
             return obj
 
-        # Deprecated
-        # if isinstance(schema, dict) and "type" not in schema:
-        #     # Legacy nested object: parse each child according to schema
-        #     obj: dict[str, Any] = {}
-        #     for field_name, field_schema in schema.items():
-        #         child = element.find(field_name)
-        #         if child is None:
-        #             obj[field_name] = None
-        #             continue
-        #         obj[field_name] = parse_element(child, field_schema)
-        #     return obj
-
         # Simple field (str, int, float, bool, enum)
         if not isinstance(schema, dict):
             # Handle case where schema is just a type string

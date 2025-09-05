@@ -6,6 +6,7 @@ from llm_serv.structured_response.utils import camel_to_snake
 PREAMBLE = """Respond ONLY with valid XML as shown above, with the following requirements:
 - Notice that "..." represents multiple <li> items.
 - Do not include any attributes in the output! The 'description' attribute is for you to understand the problem and how to respond; the 'type' is for you to understand the type of the response item, etc.
+- Mind the non-string values! If it's a numeric value, only write write the number and no other text; same for enums or booleans.
 - Output only VALID XML, while keeping in mind the objective at all times.
 """
 

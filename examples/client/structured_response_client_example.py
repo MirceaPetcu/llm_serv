@@ -38,7 +38,7 @@ async def main():
     """  # noqa: E501
 
     # Initialize the client
-    client = LLMServiceClient(host="localhost", port=9999, timeout=20.0)
+    client = LLMServiceClient(host="localhost", port=9999, timeout=60.0)
 
     # Create the response model
     response_model = StructuredResponse.from_basemodel(WeatherPrognosis)
