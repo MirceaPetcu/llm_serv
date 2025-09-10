@@ -147,6 +147,21 @@ MODELS:
       reasoning_output_price_per_1m_tokens: 2.5
     config: {}
 
+  GOOGLE/gemini-2.5-flash-lite:
+    internal_model_id: models/gemini-2.5-flash-lite
+    max_tokens: 1048576
+    max_output_tokens: 65536
+    capabilities:
+      image_support: true
+      document_support: true
+      structured_output: true
+    price:
+      input_price_per_1m_tokens: 0.1
+      cached_input_price_per_1m_tokens: 0.025
+      output_price_per_1m_tokens: 0.4
+      reasoning_output_price_per_1m_tokens: 0.4
+    config: {}
+
   GOOGLE/gemini-2.5-pro:
     internal_model_id: gemini-2.5-pro
     max_tokens: 1047576
@@ -289,4 +304,26 @@ MODELS:
       reasoning_effort: medium
     price:
       input_price_per_1m_tokens: 0.15
+      output_price_per_1m_tokens: 0.6
+
+  # https://www.together.ai/models/qwen3-235b-a22b-fp8-tput fp8
+  TOGETHER/Qwen3-235B-A22B-fp8-tput-throughput:
+    internal_model_id: Qwen/Qwen3-235B-A22B-fp8-tput
+    max_tokens: 40000
+    max_output_tokens: 15000
+    capabilities:
+      structured_output: true
+    price:
+      input_price_per_1m_tokens: 0.2
+      output_price_per_1m_tokens: 0.6
+
+  # https://www.together.ai/models/qwen3-235b-a22b-instruct-2507-fp8 fp8
+  TOGETHER/Qwen3-235B-A22B-Instruct-2507-tput:
+    internal_model_id: Qwen/Qwen3-235B-A22B-Instruct-2507-tput
+    max_tokens: 262000
+    max_output_tokens: 15000
+    capabilities:
+      structured_output: true
+    price:
+      input_price_per_1m_tokens: 0.2
       output_price_per_1m_tokens: 0.6

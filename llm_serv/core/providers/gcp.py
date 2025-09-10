@@ -192,9 +192,15 @@ class GoogleLLMProvider(LLMProvider):
             # Extract token usage information
             usage = response.usage_metadata
             tokens = ModelTokens(
-                input_tokens=getattr(usage, 'prompt_token_count', 0),
+                input_tokens=getattr(usage, 'prompt_token_count', 0) if \
+                    getattr(usage, 'prompt_token_count', 0) is not None else 0,
                 output_tokens=getattr(usage, 'candidates_token_count', 0),
-                total_tokens=getattr(usage, 'total_token_count', 0),
+                reasoning_output_tokens=getattr(usage, 'thoughts_token_count', 0) if \
+                    getattr(usage, 'thoughts_token_count', 0) is not None else 0,
+                total_tokens=getattr(usage, 'total_token_count', 0) if \
+                    getattr(usage, 'total_token_count', 0) is not None else 0,
+                cached_input_tokens=getattr(usage, 'cached_content_token_count', 0) if \
+                    getattr(usage, 'cached_content_token_count', 0) is not None else 0,
                 # Store current price rates for historical accuracy
                 input_price_per_1m_tokens=self.model.input_price_per_1m_tokens,
                 cached_input_price_per_1m_tokens=self.model.cached_input_price_per_1m_tokens,
