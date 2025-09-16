@@ -1,11 +1,15 @@
 import os
 import time
+import asyncio
+from contextlib import asynccontextmanager
 
+from pydantic.config import ConfigDict
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
+from pydantic import BaseModel, Field
 
 from llm_serv import __version__
 from llm_serv.api import LLMService
@@ -20,10 +24,49 @@ from llm_serv.core.base import LLMProvider, LLMRequest, LLMResponse
 from llm_serv.api import Model, ModelProvider
 from llm_serv.logger import logger
 from llm_serv.metrics.log_manager import LogManager
+from llm_serv.metrics.metrics import ModelMetrics
+
+
+class GetStatsRequest(BaseModel):
+    """Request model for getting model statistics."""
+    model_key: str = Field(..., description="Model key in format 'provider/model'")
+    start_time: float | None = Field(None, description="Start time filter (unix timestamp)")
+    end_time: float | None = Field(None, description="End time filter (unix timestamp)")
+    limit: int = Field(100, description="Maximum number of records to return", ge=1, le=1000)
+
+
+class GetStatsResponse(BaseModel):
+    """Response model for model statistics."""
+    model_key: str
+    stats: dict
+    logs: list[ModelMetrics]
+    total_returned: int
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for FastAPI startup and shutdown events."""
+    # Startup
+    await app.state.log_manager.initialize()
+    logger.info("LogManager initialized")
+    yield
+    # Shutdown - persist logs before exit
+    logger.info("Server shutting down, persisting logs...")
+    await app.state.log_manager.shutdown()
+    logger.info("LogManager shutdown completed")
+
 
 def create_app() -> FastAPI:    
-    # Initialize the FastAPI app
-    app = FastAPI(title="LLMService", version=__version__, docs_url="/docs", redoc_url="/redoc")
+    # Initialize the FastAPI app with lifespan events
+    app = FastAPI(
+        title="LLMService", 
+        version=__version__, 
+        docs_url="/docs", 
+        redoc_url="/redoc",
+        lifespan=lifespan
+    )
     
     # Set up the LLM Providers
     try:
@@ -68,11 +111,59 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
-        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+        return JSONResponse(status_code=500, content={"detail": "Internal server error: " + str(exc)})
 
     return app
 
 app = create_app()
+
+
+async def _collect_metrics(log_manager: LogManager, model_key: str, response: LLMResponse, status_code: int):
+    """Fire-and-forget metrics collection for successful responses."""
+    try:
+        # Calculate tokens per second
+        tokens_per_second = 0.0
+        if response.total_duration and response.total_duration > 0 and response.tokens.total_tokens > 0:
+            tokens_per_second = response.tokens.total_tokens / response.total_duration
+        
+        metrics = ModelMetrics(
+            input_tokens=response.tokens.input_tokens,
+            output_tokens=response.tokens.completion_tokens,
+            total_tokens=response.tokens.total_tokens,
+            call_start_time=response.start_time or 0.0,
+            call_end_time=response.end_time or 0.0,
+            call_duration=response.total_duration or 0.0,
+            tokens_per_second=tokens_per_second,
+            status_code=status_code,
+            error_message="",
+            internal_retries=0  # TODO: Extract from response when available
+        )
+        
+        await log_manager.add_log(model_key, metrics)
+    except Exception as e:
+        logger.error(f"Error collecting metrics: {str(e)}", exc_info=True)
+
+
+async def _collect_error_metrics(log_manager: LogManager, model_key: str, status_code: int, error_message: str):
+    """Fire-and-forget metrics collection for error responses."""
+    try:
+        metrics = ModelMetrics(
+            input_tokens=0,
+            output_tokens=0,
+            total_tokens=0,
+            call_start_time=time.time(),
+            call_end_time=time.time(),
+            call_duration=0.0,
+            tokens_per_second=0.0,
+            status_code=status_code,
+            error_message=error_message,
+            internal_retries=0
+        )
+        
+        await log_manager.add_log(model_key, metrics)
+    except Exception as e:
+        logger.error(f"Error collecting error metrics: {str(e)}", exc_info=True)
+
 
 @app.post("/list_models")
 async def list_models(provider: str | None = None) -> list[Model]:
@@ -147,22 +238,37 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
             response: LLMResponse = await llm_service(request=request)            
            
             logger.info(f"Response: {response.model_dump(exclude={'request': {'conversation'}})}")
+            
+            # Fire-and-forget metrics collection
+            asyncio.create_task(
+                _collect_metrics(app.state.log_manager, model_key, response, 200)
+            )
+            
             return response
 
         except InternalConversionException as e:
             logger.warning(f"Internal conversion exception: {str(e)}")
+            asyncio.create_task(
+                _collect_error_metrics(app.state.log_manager, model_key, 400, str(e))
+            )
             raise HTTPException(
                 status_code=400,
                 detail={"error": "internal_conversion_exception", "message": str(e)},
             ) from e
         except ServiceCallThrottlingException as e:
             logger.warning(f"Service call throttling exception: {str(e)}")
+            asyncio.create_task(
+                _collect_error_metrics(app.state.log_manager, model_key, 429, str(e))
+            )
             raise HTTPException(
                 status_code=429,
                 detail={"error": "service_throttling_exception", "message": str(e)},
             ) from e
         except StructuredResponseException as e:
             logger.warning(f"Structured response exception: {str(e)}")
+            asyncio.create_task(
+                _collect_error_metrics(app.state.log_manager, model_key, 422, str(e))
+            )
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -174,9 +280,15 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
             ) from e
         except ServiceCallException as e:
             logger.warning(f"Service call exception: {str(e)}")
+            asyncio.create_task(
+                _collect_error_metrics(app.state.log_manager, model_key, 502, str(e))
+            )
             raise HTTPException(status_code=502, detail={"error": "service_call_exception", "message": str(e)}) from e
         except Exception as e:            
             logger.error(f"LLM service error: {str(e)}", exc_info=True)
+            asyncio.create_task(
+                _collect_error_metrics(app.state.log_manager, model_key, 500, str(e))
+            )
             raise HTTPException(
                 status_code=500,
                 detail={"error": "llm_service_exception", "message": f"Error processing chat request: {str(e)}"},
@@ -225,6 +337,31 @@ async def health_check(request: Request):
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Service health check failed: {str(e)}") from e
+
+
+@app.post("/get_stats", response_model=GetStatsResponse)
+async def get_stats(request: GetStatsRequest) -> GetStatsResponse:
+    """Get statistics and logs for a specific model."""
+    try:
+        stats, logs = await app.state.log_manager.get_logs(
+            request.model_key, 
+            request.start_time, 
+            request.end_time, 
+            request.limit
+        )
+        
+        return GetStatsResponse(
+            model_key=request.model_key,
+            stats=stats,
+            logs=logs,
+            total_returned=len(logs)
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving stats for {request.model_key}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "stats_retrieval_error", "message": f"Failed to retrieve stats: {str(e)}"}
+        ) from e
 
 
 def main():

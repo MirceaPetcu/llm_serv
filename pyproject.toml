@@ -1,28 +1,27 @@
 [tool.poetry]
 name = "llm_serv"
-version = "2025.8.18"
+version = "2025.9.16"
 description = "LLM Service"
 authors = ["Stefan Dumitrescu <dumitrescu.stefan@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.13"
-pydantic = "^2.11.4"
+pydantic = "^2.11.7"
 pytest = "8.3.3"
-fastapi = "^0.115.0"
-uvicorn = "^0.32.1"
+fastapi = "^0.116.1"
+uvicorn = "^0.35.0"
 PyYAML = "^6.0.1"
 rich = "^13.9.4"
 pillow = "^10.1.0"
 dateparser = "^1.2.1"
 pytest-asyncio = "^0.26.0"
 requests = "^2.32.4"
-openai = "^1.97.0"
-aioboto3 = "^14.3.0"
+openai = "^1.107.3"
+aioboto3 = "^15.1.0"
 colorama = "^0.4.6"
-google-genai = "^1.27.0"
+google-genai = "^1.37.0"
 lxml = "^6.0.0"
-sloppy-xml = "^0.3.0"
 msgspec = "^0.19.0"
 
 [tool.pdm.dev-dependencies]

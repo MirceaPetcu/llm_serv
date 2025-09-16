@@ -27,6 +27,18 @@ class LogManager:
             await self._initialize_from_disk()
             self._initialized = True
 
+    async def shutdown(self):
+        """Shutdown the LogManager by persisting all remaining logs to disk."""
+        async with self._lock:
+            try:
+                print("LogManager shutdown: Archiving remaining logs...")
+                # Archive any remaining logs in memory
+                await self._archive_memory_logs()
+                print(f"LogManager shutdown: Successfully archived logs for {len(self.logs)} models")
+            except Exception as e:
+                print(f"LogManager shutdown error: {e}")
+                # Don't raise exception during shutdown to avoid blocking server shutdown
+
     async def add_log(self, model_key: str, model_metrics_item: ModelMetrics):
         async with self._lock:
             if model_key not in self.logs:
