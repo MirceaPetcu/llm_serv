@@ -24,6 +24,7 @@ class LogManager:
     async def initialize(self):
         """Initialize the LogManager by reading models from YAML and loading latest logs."""
         if not self._initialized:
+            await self._ensure_base_metrics_folder()
             await self._initialize_from_disk()
             self._initialized = True
 
@@ -223,7 +224,7 @@ class LogManager:
             metrics_dir = f"metrics/{safe_model_key}"
             
             # Ensure output folder exists
-            os.makedirs(metrics_dir, exist_ok=True)
+            await self._ensure_metrics_folder(metrics_dir)
             
             # Sort logs by start time
             sorted_logs = sorted(model_logs, key=lambda x: x.call_start_time)
@@ -399,6 +400,37 @@ class LogManager:
         for char in unsafe_chars:
             filename = filename.replace(char, '_')
         return filename
+
+    async def _ensure_base_metrics_folder(self):
+        """Ensure the base metrics folder exists and is writable."""
+        try:
+            await self._run_in_thread(self._create_folder_with_validation, "metrics")
+        except Exception as e:
+            raise RuntimeError(f"Failed to create or access base metrics folder: {e}") from e
+
+    async def _ensure_metrics_folder(self, folder_path: str):
+        """Ensure a specific metrics folder exists and is writable."""
+        try:
+            await self._run_in_thread(self._create_folder_with_validation, folder_path)
+        except Exception as e:
+            raise RuntimeError(f"Failed to create or access metrics folder '{folder_path}': {e}") from e
+
+    def _create_folder_with_validation(self, folder_path: str):
+        """Create folder and validate it's writable. Raises exception on failure."""
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+            
+            # Validate folder is writable by creating a test file
+            test_file_path = os.path.join(folder_path, ".write_test")
+            try:
+                with open(test_file_path, 'w') as f:
+                    f.write("test")
+                os.remove(test_file_path)
+            except Exception as e:
+                raise PermissionError(f"Folder '{folder_path}' is not writable: {e}") from e
+                
+        except OSError as e:
+            raise OSError(f"Failed to create folder '{folder_path}': {e}") from e
 
     async def _run_in_thread(self, func, *args):
         """Run a CPU-intensive function in a thread pool."""

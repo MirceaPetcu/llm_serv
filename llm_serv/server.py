@@ -3,7 +3,6 @@ import time
 import asyncio
 from contextlib import asynccontextmanager
 
-from pydantic.config import ConfigDict
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,14 +34,46 @@ class GetStatsRequest(BaseModel):
     limit: int = Field(100, description="Maximum number of records to return", ge=1, le=1000)
 
 
+class ModelMetricsResponse(BaseModel):
+    """Pydantic model for ModelMetrics API response."""
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_output_tokens: int = 0
+    total_tokens: int = 0
+    call_start_time: float = 0.0
+    call_end_time: float = 0.0
+    call_duration: float = 0.0
+    tokens_per_second: float = 0.0
+    status_code: int | None = None
+    error_message: str = ""
+    internal_retries: int = 0
+
+    @classmethod
+    def from_model_metrics(cls, metrics: ModelMetrics) -> "ModelMetricsResponse":
+        """Convert ModelMetrics msgspec.Struct to Pydantic model."""
+        return cls(
+            input_tokens=metrics.input_tokens,
+            cached_input_tokens=metrics.cached_input_tokens,
+            output_tokens=metrics.output_tokens,
+            reasoning_output_tokens=metrics.reasoning_output_tokens,
+            total_tokens=metrics.total_tokens,
+            call_start_time=metrics.call_start_time,
+            call_end_time=metrics.call_end_time,
+            call_duration=metrics.call_duration,
+            tokens_per_second=metrics.tokens_per_second,
+            status_code=metrics.status_code,
+            error_message=metrics.error_message,
+            internal_retries=metrics.internal_retries
+        )
+
+
 class GetStatsResponse(BaseModel):
     """Response model for model statistics."""
     model_key: str
     stats: dict
-    logs: list[ModelMetrics]
+    logs: list[ModelMetricsResponse]
     total_returned: int
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 @asynccontextmanager
@@ -350,10 +381,13 @@ async def get_stats(request: GetStatsRequest) -> GetStatsResponse:
             request.limit
         )
         
+        # Convert ModelMetrics to ModelMetricsResponse for proper JSON serialization
+        response_logs = [ModelMetricsResponse.from_model_metrics(log) for log in logs]
+        
         return GetStatsResponse(
             model_key=request.model_key,
             stats=stats,
-            logs=logs,
+            logs=response_logs,
             total_returned=len(logs)
         )
     except Exception as e:
@@ -367,7 +401,7 @@ async def get_stats(request: GetStatsRequest) -> GetStatsResponse:
 def main():
     try:
         port = int(os.getenv("API_PORT", "9999"))        
-        logger.info(f"Starting server version {__version__} on port {port}")
+        logger.info(f"Starting server version '{__version__}' on port '{port}'")
         
         # Pass the app instance directly instead of a string reference
         uvicorn.run(
