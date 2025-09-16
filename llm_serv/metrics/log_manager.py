@@ -118,16 +118,35 @@ class LogManager:
         - min_duration
         - std_duration
 
+        - average_input_tokens_per_call
+        - average_cached_input_tokens_per_call
+        - average_output_tokens_per_call
+        - average_reasoning_output_tokens_per_call
+        - average_total_tokens_per_call
+
+        - total_input_tokens
+        - total_cached_input_tokens
+        - total_output_tokens
+        - total_reasoning_output_tokens
+        - total_total_tokens
+
         - average_tokens_per_second
         - median_tokens_per_second
         - max_tokens_per_second
         - min_tokens_per_second
         - std_tokens_per_second
+
+        - average_total_tokens
+        - median_total_tokens
+        - max_total_tokens
+        - min_total_tokens
+        - std_total_tokens
         
         - percent_success
         - status_counter (status_code, count)
 
         - average_internal_retries
+        - total_requests
         
         """
         if not data_points:
@@ -142,20 +161,50 @@ class LogManager:
                 "max_tokens_per_second": 0,
                 "min_tokens_per_second": 0,
                 "std_tokens_per_second": 0,
+                "average_total_tokens": 0,
+                "median_total_tokens": 0,
+                "max_total_tokens": 0,
+                "min_total_tokens": 0,
+                "std_total_tokens": 0,
                 "percent_success": 0,
                 "status_counter": {},
                 "average_internal_retries": 0,
-                "total_requests": 0
+                "total_requests": 0,
+                "average_input_tokens_per_call": 0,
+                "average_cached_input_tokens_per_call": 0,
+                "average_output_tokens_per_call": 0,
+                "average_reasoning_output_tokens_per_call": 0,
+                "average_total_tokens_per_call": 0,
+                "total_input_tokens": 0,
+                "total_cached_input_tokens": 0,
+                "total_output_tokens": 0,
+                "total_reasoning_output_tokens": 0,
+                "total_total_tokens": 0
             }
         
         # Extract values for statistics
         durations = [dp.call_duration for dp in data_points if dp.call_duration > 0]
         tokens_per_second = [dp.tokens_per_second for dp in data_points if dp.tokens_per_second > 0]
+        total_tokens_values = [dp.total_tokens for dp in data_points if dp.total_tokens > 0]
         internal_retries = [dp.internal_retries for dp in data_points]
+        
+        # Token statistics
+        total_input_tokens = sum(dp.input_tokens for dp in data_points)
+        total_cached_input_tokens = sum(dp.cached_input_tokens for dp in data_points)
+        total_output_tokens = sum(dp.output_tokens for dp in data_points)
+        total_reasoning_output_tokens = sum(dp.reasoning_output_tokens for dp in data_points)
+        total_total_tokens = sum(dp.total_tokens for dp in data_points)
+        
+        # Average tokens per call
+        total_requests = len(data_points)
+        average_input_tokens_per_call = total_input_tokens / total_requests if total_requests > 0 else 0
+        average_cached_input_tokens_per_call = total_cached_input_tokens / total_requests if total_requests > 0 else 0
+        average_output_tokens_per_call = total_output_tokens / total_requests if total_requests > 0 else 0
+        average_reasoning_output_tokens_per_call = total_reasoning_output_tokens / total_requests if total_requests > 0 else 0
+        average_total_tokens_per_call = total_total_tokens / total_requests if total_requests > 0 else 0
         
         # Success tracking
         successful_requests = sum(1 for dp in data_points if dp.status_code is not None and 200 <= dp.status_code < 300)
-        total_requests = len(data_points)
         
         # Status code counter
         status_counter = {}
@@ -181,13 +230,33 @@ class LogManager:
             "std_tokens_per_second": statistics.stdev(tokens_per_second) if len(tokens_per_second) > 1 else 0,
         }
         
+        # Total tokens statistics
+        total_tokens_stats = {
+            "average_total_tokens": statistics.mean(total_tokens_values) if total_tokens_values else 0,
+            "median_total_tokens": statistics.median(total_tokens_values) if total_tokens_values else 0,
+            "max_total_tokens": max(total_tokens_values) if total_tokens_values else 0,
+            "min_total_tokens": min(total_tokens_values) if total_tokens_values else 0,
+            "std_total_tokens": statistics.stdev(total_tokens_values) if len(total_tokens_values) > 1 else 0,
+        }
+        
         stats = {
             **duration_stats,
             **tps_stats,
+            **total_tokens_stats,
             "percent_success": (successful_requests / total_requests * 100) if total_requests > 0 else 0,
             "status_counter": status_counter,
             "average_internal_retries": statistics.mean(internal_retries) if internal_retries else 0,
-            "total_requests": total_requests
+            "total_requests": total_requests,
+            "average_input_tokens_per_call": average_input_tokens_per_call,
+            "average_cached_input_tokens_per_call": average_cached_input_tokens_per_call,
+            "average_output_tokens_per_call": average_output_tokens_per_call,
+            "average_reasoning_output_tokens_per_call": average_reasoning_output_tokens_per_call,
+            "average_total_tokens_per_call": average_total_tokens_per_call,
+            "total_input_tokens": total_input_tokens,
+            "total_cached_input_tokens": total_cached_input_tokens,
+            "total_output_tokens": total_output_tokens,
+            "total_reasoning_output_tokens": total_reasoning_output_tokens,
+            "total_total_tokens": total_total_tokens
         }
         
         return stats
