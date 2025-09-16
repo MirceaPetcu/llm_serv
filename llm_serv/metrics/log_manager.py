@@ -4,18 +4,28 @@ import os
 import glob
 import statistics
 from datetime import datetime
+from pathlib import Path
+import yaml
 import msgspec
 
 from llm_serv.metrics.metrics import ModelMetrics
 
 
 class LogManager:
-    def __init__(self, max_log_length: int = 1000, max_log_archive_files: int = 100):
+    def __init__(self, max_log_length: int = 100, max_log_folder_size_in_mb: int = 1024, models_yaml_path: str = "llm_serv/models.yaml"):
         self._lock = asyncio.Lock()        
         self.max_log_length = max_log_length
-        self.max_log_archive_files = max_log_archive_files
+        self.max_log_folder_size_in_mb = max_log_folder_size_in_mb
+        self.models_yaml_path = models_yaml_path
 
         self.logs: dict[str, list[ModelMetrics]] = {}  # model_key -> ModelMetrics list
+        self._initialized = False
+
+    async def initialize(self):
+        """Initialize the LogManager by reading models from YAML and loading latest logs."""
+        if not self._initialized:
+            await self._initialize_from_disk()
+            self._initialized = True
 
     async def add_log(self, model_key: str, model_metrics_item: ModelMetrics):
         async with self._lock:
@@ -173,18 +183,25 @@ class LogManager:
         """
         Housekeeping is done to keep the logs from growing too large.
         If the log length is greater than the max_log_length, we need to pack, save to disk and unload memory.
+        Also checks if total log folder size exceeds max_log_folder_size_in_mb and cleans up if needed.
 
         Log name convention is: metrics/model_key/YYYYMMDDHHMMSS-YYYYMMDDHHMMSS.json (start_time-end_time).
-
-        If there are more than max_log_archives PER MODEL, we need to delete the oldest one.
         """
         # Calculate total log length
         log_length = sum(len(v) for v in self.logs.values())
         
-        if log_length <= self.max_log_length:
-            return
+        # Archive logs if memory limit is exceeded
+        if log_length > self.max_log_length:
+            await self._archive_memory_logs()
         
-        # Need to archive logs
+        # Check total folder size and cleanup if needed
+        await self._cleanup_by_folder_size()
+        
+        # Force garbage collection
+        gc.collect()
+    
+    async def _archive_memory_logs(self):
+        """Archive logs from memory to disk."""
         for model_key, model_logs in list(self.logs.items()):
             if not model_logs:
                 continue
@@ -214,12 +231,155 @@ class LogManager:
                 
                 # Clear memory logs for this model
                 self.logs[model_key] = []
+    
+    async def _cleanup_by_folder_size(self):
+        """Clean up old log files if total folder size exceeds limit."""
+        try:
+            # Calculate total size of all log files
+            total_size_mb = await self._calculate_total_log_folder_size()
+            
+            if total_size_mb <= self.max_log_folder_size_in_mb:
+                return
+            
+            # Get all log files across all models, sorted by modification time (oldest first)
+            all_log_files = await self._get_all_log_files_sorted_by_age()
+            
+            # Delete files until we're under the size limit
+            for file_path in all_log_files:
+                if total_size_mb <= self.max_log_folder_size_in_mb:
+                    break
                 
-                # Clean up old archive files if needed
-                await self._cleanup_old_archives(metrics_dir)
+                try:
+                    file_size_mb = await self._run_in_thread(self._get_file_size_mb, file_path)
+                    await self._run_in_thread(os.remove, file_path)
+                    total_size_mb -= file_size_mb
+                    print(f"Deleted old log file: {file_path} ({file_size_mb:.2f} MB)")
+                except Exception as e:
+                    print(f"Error deleting log file {file_path}: {e}")
+                    
+        except Exception as e:
+            print(f"Error during folder size cleanup: {e}")
+    
+    async def _calculate_total_log_folder_size(self) -> float:
+        """Calculate total size of all log files in MB."""
+        def calculate_size():
+            total_size = 0
+            metrics_base_dir = "metrics"
+            
+            if not os.path.exists(metrics_base_dir):
+                return 0
+            
+            for root, _dirs, files in os.walk(metrics_base_dir):
+                for file in files:
+                    if file.endswith('.json'):
+                        file_path = os.path.join(root, file)
+                        try:
+                            total_size += os.path.getsize(file_path)
+                        except OSError:
+                            continue
+            
+            return total_size / (1024 * 1024)  # Convert to MB
         
-        # Force garbage collection
-        gc.collect()
+        return await self._run_in_thread(calculate_size)
+    
+    async def _get_all_log_files_sorted_by_age(self) -> list[str]:
+        """Get all log files across all models, sorted by modification time (oldest first)."""
+        def get_files():
+            all_files = []
+            metrics_base_dir = "metrics"
+            
+            if not os.path.exists(metrics_base_dir):
+                return []
+            
+            for root, _dirs, files in os.walk(metrics_base_dir):
+                for file in files:
+                    if file.endswith('.json'):
+                        file_path = os.path.join(root, file)
+                        all_files.append(file_path)
+            
+            # Sort by modification time (oldest first)
+            all_files.sort(key=os.path.getmtime)
+            return all_files
+        
+        return await self._run_in_thread(get_files)
+    
+    def _get_file_size_mb(self, file_path: str) -> float:
+        """Get file size in MB."""
+        try:
+            return os.path.getsize(file_path) / (1024 * 1024)
+        except OSError:
+            return 0
+
+    async def _initialize_from_disk(self):
+        """Initialize logs from disk by reading models.yaml and loading latest log files."""
+        try:
+            # Read models from models.yaml
+            model_keys = await self._get_model_keys_from_yaml()
+            
+            async with self._lock:
+                # Initialize empty logs for all models
+                for model_key in model_keys:
+                    if model_key not in self.logs:
+                        self.logs[model_key] = []
+                
+                # Load latest logs from disk for each model
+                for model_key in model_keys:
+                    await self._load_latest_logs_for_model(model_key)
+                    
+        except Exception as e:
+            print(f"Error during initialization from disk: {e}")
+    
+    async def _get_model_keys_from_yaml(self) -> list[str]:
+        """Read model keys from models.yaml file."""
+        try:
+            yaml_path = Path(self.models_yaml_path)
+            if not yaml_path.exists():
+                print(f"Models YAML file not found at {self.models_yaml_path}")
+                return []
+            
+            def read_yaml():
+                with open(yaml_path, 'r') as f:
+                    data = yaml.safe_load(f)
+                    models_section = data.get('MODELS', {})
+                    return list(models_section.keys())
+            
+            return await self._run_in_thread(read_yaml)
+            
+        except Exception as e:
+            print(f"Error reading models.yaml: {e}")
+            return []
+    
+    async def _load_latest_logs_for_model(self, model_key: str):
+        """Load the latest log files for a specific model into memory."""
+        try:
+            safe_model_key = self._sanitize_filename(model_key)
+            metrics_dir = f"metrics/{safe_model_key}"
+            
+            if not os.path.exists(metrics_dir):
+                return
+            
+            # Get the latest log file for this model
+            pattern = f"{metrics_dir}/*.json"
+            archived_files = glob.glob(pattern)
+            
+            if not archived_files:
+                return
+            
+            # Sort by modification time and get the latest file
+            archived_files.sort(key=os.path.getmtime, reverse=True)
+            latest_file = archived_files[0]
+            
+            # Load logs from the latest file
+            logs = await self._run_in_thread(self._read_logs_from_file, latest_file)
+            
+            # Add to memory, keeping only the most recent logs up to max_log_length
+            if logs:
+                # Sort by call_start_time and keep the latest ones
+                logs.sort(key=lambda x: x.call_start_time, reverse=True)
+                self.logs[model_key].extend(logs[:self.max_log_length])
+                
+        except Exception as e:
+            print(f"Error loading logs for model {model_key}: {e}")
 
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitize filename by replacing unsafe characters with underscores."""
@@ -296,22 +456,3 @@ class LogManager:
         except Exception as e:
             print(f"Error decoding log file {filename}: {e}")
             return []
-
-    async def _cleanup_old_archives(self, metrics_dir: str):
-        """Clean up old archive files if there are more than max_log_archive_files."""
-        pattern = f"{metrics_dir}/*.json"
-        archived_files = glob.glob(pattern)
-        
-        if len(archived_files) <= self.max_log_archive_files:
-            return
-        
-        # Sort by modification time (oldest first)
-        archived_files.sort(key=os.path.getmtime)
-        
-        # Delete oldest files
-        files_to_delete = archived_files[:-self.max_log_archive_files]
-        for file_path in files_to_delete:
-            try:
-                await self._run_in_thread(os.remove, file_path)
-            except Exception as e:
-                print(f"Error deleting old archive file {file_path}: {e}")

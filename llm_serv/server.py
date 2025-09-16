@@ -19,6 +19,7 @@ from llm_serv.core.exceptions import (
 from llm_serv.core.base import LLMProvider, LLMRequest, LLMResponse
 from llm_serv.api import Model, ModelProvider
 from llm_serv.logger import logger
+from llm_serv.metrics.log_manager import LogManager
 
 def create_app() -> FastAPI:    
     # Initialize the FastAPI app
@@ -27,6 +28,8 @@ def create_app() -> FastAPI:
     # Set up the LLM Providers
     try:
         app.state.providers = {}
+        app.state.log_manager = LogManager()
+        
         models:list[Model] = LLMService.list_models()
         for model in models:
             if model.provider.name not in app.state.providers:
