@@ -279,7 +279,7 @@ class LLMServiceClient:
                             raise ServiceCallException(f"Validation error: {error_msg}")
                     elif response.status_code == 401 and error_type == "credentials_not_set":
                         raise CredentialsException(error_msg)
-                    elif response.status_code == 502 and error_type == "service_call_error":
+                    elif response.status_code == 502 and error_type == "service_call_exception":
                         raise ServiceCallException(error_msg)
                     else:
                         # General service call exception for other errors

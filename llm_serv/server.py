@@ -19,7 +19,6 @@ from llm_serv.core.exceptions import (
 from llm_serv.core.base import LLMProvider, LLMRequest, LLMResponse
 from llm_serv.api import Model, ModelProvider
 from llm_serv.logger import logger
-from llm_serv.structured_response.model import StructuredResponse
 
 def create_app() -> FastAPI:    
     # Initialize the FastAPI app
@@ -142,7 +141,7 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
 
         try:
             # This is async now, so await it
-            response = await llm_service(request=request)            
+            response: LLMResponse = await llm_service(request=request)            
            
             logger.info(f"Response: {response.model_dump(exclude={'request': {'conversation'}})}")
             return response
