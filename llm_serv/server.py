@@ -248,10 +248,10 @@ async def chat(model_provider: str, model_name: str, request: LLMRequest) -> LLM
                 f"Model {model_name} not found in provider {model_provider}"
             )
         except ValueError as e:
-            logger.error(f"Model not found: {model_provider}/{model_name}")
+            logger.error(f"Model not found: '{model_provider}/{model_name}'")
             raise HTTPException(
                 status_code=404,
-                detail={"error": "model_not_found", "message": f"Model {model_provider}/{model_name} not found"},
+                detail={"error": "model_not_found", "message": f"Model '{model_provider}/{model_name}' not found"},
             ) from e
 
         # Increment chat request counters
@@ -374,6 +374,16 @@ async def health_check(request: Request):
 async def get_stats(request: GetStatsRequest) -> GetStatsResponse:
     """Get statistics and logs for a specific model."""
     try:
+        # First validate that the model exists
+        try:
+            LLMService.get_model(model_id=request.model_key)
+        except ValueError as e:
+            logger.warning(f"Model not found: '{request.model_key}'")
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "model_not_found", "message": f"Model '{request.model_key}' not found"}
+            ) from e
+        
         stats, logs = await app.state.log_manager.get_logs(
             request.model_key, 
             request.start_time, 
@@ -383,6 +393,7 @@ async def get_stats(request: GetStatsRequest) -> GetStatsResponse:
         
         # Convert ModelMetrics to ModelMetricsResponse for proper JSON serialization
         response_logs = [ModelMetricsResponse.from_model_metrics(log) for log in logs]
+        logger.debug(f"Logs count: {len(response_logs)} for model '{request.model_key}', start time: {request.start_time}, end time: {request.end_time}, limit: {request.limit}.")
         
         return GetStatsResponse(
             model_key=request.model_key,
@@ -390,6 +401,9 @@ async def get_stats(request: GetStatsRequest) -> GetStatsResponse:
             logs=response_logs,
             total_returned=len(logs)
         )
+    except HTTPException:
+        # Re-raise HTTPExceptions that were already properly handled
+        raise
     except Exception as e:
         logger.error(f"Error retrieving stats for {request.model_key}: {str(e)}", exc_info=True)
         raise HTTPException(
