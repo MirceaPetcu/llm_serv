@@ -27,8 +27,9 @@ RUN pip install --upgrade together
 # Copy application code
 COPY llm_serv ./llm_serv
 
-# Create non-root user for security
+# Create non-root user for security and set up metrics directory
 RUN adduser --disabled-password --gecos "" appuser \
+    && mkdir -p /app/metrics \
     && chown -R appuser:appuser /app
 USER appuser
 
