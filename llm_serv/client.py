@@ -1,4 +1,6 @@
+import asyncio
 import logging
+from functools import wraps
 
 import httpx
 
@@ -16,6 +18,17 @@ from llm_serv.api import LLMService, Model, ModelProvider
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def track_usage(func):
+    """Decorator to track concurrent usage of client methods."""
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        self._concurrent_usage_count += 1
+        try:
+            return await func(self, *args, **kwargs)
+        finally:
+            self._concurrent_usage_count -= 1
+    return wrapper
+
 class LLMServiceClient:
     def __init__(self, host: str, port: int, model_id: str | None = None, timeout: float = 60.0):
         self.host = host
@@ -27,6 +40,7 @@ class LLMServiceClient:
         self.model_name: str | None = None
         self._client: httpx.AsyncClient | None = None # Initialize client as None initially
         self.logger = logger # Use the module-level logger or create a specific instance logger
+        self._concurrent_usage_count: int = 0  # Track concurrent chat requests
 
         self.llm_service = LLMService()
 
@@ -63,12 +77,51 @@ class LLMServiceClient:
         await response.aread() # Ensure response body is available for logging if needed
         self.logger.debug(f"Response: {response.status_code} - {response.url} - Body: {response.text[:100]}...") # Log truncated body
 
-    async def close(self):
-        """Close the underlying HTTP client."""
-        if self._client:
-            self.logger.info("Closing httpx.AsyncClient")
+    async def close(self, graceful: bool = True, grace_period: float = 5*60): # 5 minutes
+        """
+        Close the underlying HTTP client.
+        
+        Args:
+            graceful: If True, waits for active requests to complete before closing
+            grace_period: Maximum time in seconds to wait for graceful shutdown
+        """
+        if not self._client:
+            return
+            
+        if not graceful:
+            # Force close immediately
+            self.logger.debug("Force closing httpx.AsyncClient")
             await self._client.aclose()
             self._client = None
+            return
+            
+        # Graceful shutdown: wait for active requests to complete
+        start_time = asyncio.get_event_loop().time()
+        poll_interval = 1  # Poll every 1 second
+        
+        active_requests = await self.is_used()
+        if active_requests > 0:
+            self.logger.debug(
+                f"Gracefully closing httpx.AsyncClient, waiting for {active_requests} active requests to complete "
+                f"(max {grace_period:.1f}s)"
+            )
+        
+        while active_requests > 0:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= grace_period:
+                self.logger.warning(
+                    f"Grace period ({grace_period:.1f}s) exceeded with {active_requests} active requests, force closing"
+                )
+                break
+                
+            await asyncio.sleep(poll_interval)
+            active_requests = await self.is_used()
+            
+        if active_requests == 0:
+            self.logger.debug("All requests completed, closing httpx.AsyncClient gracefully")
+        
+        await self._client.aclose()
+        self._client = None
 
     def _validate_timeout(self, timeout: float) -> httpx.Timeout:
         """
@@ -93,6 +146,7 @@ class LLMServiceClient:
         self.model_provider, self.model_name = model_id.split("/", 1)
         self.logger.info(f"Client model set to: {self.model_id}")
 
+    @track_usage
     async def list_models(self, provider: str | None = None) -> list[str]:
         """
         Lists all available models from the server, as model_id strings.
@@ -134,6 +188,7 @@ class LLMServiceClient:
             self.logger.error(f"Failed to connect to server for list_models: {str(e)}", exc_info=True)
             raise ServiceCallException(f"Failed to connect to server: {str(e)}") from e
 
+    @track_usage
     async def get_model_info(self, model_id: str) -> Model:
         """
         Gets information about a specific model.
@@ -152,6 +207,7 @@ class LLMServiceClient:
             self.logger.error(f"Failed to connect to server for get_model_info: {str(e)}", exc_info=True)
             raise ServiceCallException(f"Failed to connect to server: {str(e)}") from e
 
+    @track_usage
     async def list_providers(self) -> list[str]:
         """
         Lists all available providers from the server.
@@ -188,6 +244,15 @@ class LLMServiceClient:
         """
         self._set_model_id(model_id) # This now updates model_id, provider, and name
 
+    async def is_used(self) -> int:
+        """
+        Returns the number of concurrent chat requests currently in progress.
+        
+        Returns:
+            int: Number of active chat requests (0 if none)
+        """
+        return self._concurrent_usage_count
+
     def has_fixed_temperature(self) -> bool:
         """
         Checks if the model has a fixed temperature.
@@ -198,6 +263,7 @@ class LLMServiceClient:
             self.logger.warning(f"Failed to get model {self.model_id}: {str(e)}, could I have stale info?", exc_info=True)
             return False        
 
+    @track_usage
     async def chat(self, request: LLMRequest, timeout: float | None = None) -> LLMResponse:
         """
         Sends a chat request to the server using the currently set model.
@@ -236,7 +302,7 @@ class LLMServiceClient:
                 url,
                 json=request.model_dump(mode="json"),
                 timeout=request_timeout # Pass request-specific timeout here
-            )
+                )
             
             # Handle non-200 responses
             if response.status_code != 200:
