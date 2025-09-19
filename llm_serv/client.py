@@ -77,22 +77,12 @@ class LLMServiceClient:
         await response.aread() # Ensure response body is available for logging if needed
         self.logger.debug(f"Response: {response.status_code} - {response.url} - Body: {response.text[:100]}...") # Log truncated body
 
-    async def close(self, graceful: bool = True, grace_period: float = 5*60): # 5 minutes
-        """
-        Close the underlying HTTP client.
-        
-        Args:
-            graceful: If True, waits for active requests to complete before closing
-            grace_period: Maximum time in seconds to wait for graceful shutdown
-        """
-        if not self._client:
-            return
-            
+    async def _do_close_client(self, client, graceful: bool, grace_period: float):
+        """Internal method to close a specific httpx client instance."""
         if not graceful:
             # Force close immediately
             self.logger.debug("Force closing httpx.AsyncClient")
-            await self._client.aclose()
-            self._client = None
+            await client.aclose()
             return
             
         # Graceful shutdown: wait for active requests to complete
@@ -120,8 +110,38 @@ class LLMServiceClient:
         if active_requests == 0:
             self.logger.debug("All requests completed, closing httpx.AsyncClient gracefully")
         
-        await self._client.aclose()
-        self._client = None
+        await client.aclose()
+
+    async def close(self, await_close: bool = True, graceful: bool = True, grace_period: float = 5*60): # 5 minutes
+        """
+        Close the underlying HTTP client.
+        
+        Args:
+            await_close: If True, waits for close operation to complete. If False, starts close in background and returns immediately
+            graceful: If True, waits for active requests to complete before closing
+            grace_period: Maximum time in seconds to wait for graceful shutdown
+        """
+        if not self._client:
+            return
+            
+        if await_close:
+            # Wait for close to complete
+            client_to_close = self._client
+            self._client = None
+            await self._do_close_client(client_to_close, graceful, grace_period)
+        else:
+            # Start background close and return immediately
+            client_to_close = self._client
+            self._client = None  # Prevent new requests immediately
+            
+            async def background_close():
+                try:
+                    await self._do_close_client(client_to_close, graceful, grace_period)
+                except Exception as e:
+                    self.logger.error(f"Error during background close: {e}", exc_info=True)
+            
+            # Start background task without waiting
+            asyncio.create_task(background_close())
 
     def _validate_timeout(self, timeout: float) -> httpx.Timeout:
         """
