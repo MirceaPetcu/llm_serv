@@ -1,9 +1,7 @@
 import asyncio
 import logging
 from functools import wraps
-
 import httpx
-
 from llm_serv.core.base import LLMRequest, LLMResponse
 from llm_serv.core.exceptions import (CredentialsException,
                                       InternalConversionException,
@@ -30,7 +28,7 @@ def track_usage(func):
     return wrapper
 
 class LLMServiceClient:
-    def __init__(self, host: str, port: int, model_id: str | None = None, timeout: float = 60.0):
+    def __init__(self, host: str, port: int, model_id: str | None = None, timeout: float = 600.0):
         self.host = host
         self.port = port
         self.base_url = f"http://{host}:{port}"
@@ -41,41 +39,31 @@ class LLMServiceClient:
         self._client: httpx.AsyncClient | None = None # Initialize client as None initially
         self.logger = logger # Use the module-level logger or create a specific instance logger
         self._concurrent_usage_count: int = 0  # Track concurrent chat requests
-
         self.llm_service = LLMService()
-
         if model_id:
             self._set_model_id(model_id)
-                
     async def __aenter__(self):
         await self._ensure_client_initialized()
         return self
-        
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
-        
     async def _ensure_client_initialized(self):
         """Initializes the httpx client if it hasn't been already."""
         if self._client is None:
             self.logger.info("Initializing httpx.AsyncClient")
             self._client = httpx.AsyncClient(
                 base_url=self.base_url, # Set base_url here
-                timeout=self.timeout,
-                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                timeout=httpx.Timeout(
+                    connect=60,
+                    read=60,
+                    write=60,
+                    pool=60,
+                ),
+                limits=httpx.Limits(max_connections=500, max_keepalive_connections=500),
                 headers={
                     "Accept-Encoding": "gzip, deflate",
-                    "Content-Type": "application/json"
                 },
-                event_hooks={'request': [self._log_request], 'response': [self._log_response]} # Optional: Add logging hooks
             )
-
-    # Optional: Logging hooks for requests and responses
-    async def _log_request(self, request: httpx.Request):
-        self.logger.debug(f"Request: {request.method} {request.url} - Headers: {request.headers}")
-
-    async def _log_response(self, response: httpx.Response):
-        await response.aread() # Ensure response body is available for logging if needed
-        self.logger.debug(f"Response: {response.status_code} - {response.url} - Body: {response.text[:100]}...") # Log truncated body
 
     async def _do_close_client(self, client, graceful: bool, grace_period: float):
         """Internal method to close a specific httpx client instance."""
