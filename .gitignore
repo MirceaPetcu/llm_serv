@@ -1,5 +1,6 @@
 metrics/
 logs/
+poetry.lock
 
 private-key.pem
 public-key.pem
