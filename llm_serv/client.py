@@ -42,11 +42,14 @@ class LLMServiceClient:
         self.llm_service = LLMService()
         if model_id:
             self._set_model_id(model_id)
+
     async def __aenter__(self):
         await self._ensure_client_initialized()
         return self
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+        
     async def _ensure_client_initialized(self):
         """Initializes the httpx client if it hasn't been already."""
         if self._client is None:
