@@ -56,6 +56,8 @@ class TogetherLLMProvider(LLMProvider):
         # Handle system message if present
         if request.conversation.system is not None and len(request.conversation.system) > 0:
             messages.append({"role": "system", "content": request.conversation.system})
+        else:
+            messages.append({"role": "system", "content": "Respond in JSON format."})
 
         # Process each message
         for message in request.conversation.messages:
@@ -119,6 +121,12 @@ class TogetherLLMProvider(LLMProvider):
         if self.model.reasoning_effort is not None:
             request_params["reasoning_effort"] = self.model.reasoning_effort
         
+        if request.force_native_structured_response:
+            request_params["response_format"] = {
+                "type": "json_schema",
+                "schema": request.response_model.definition
+            }
+
         # call the LLM provider using chat completions API                 
         try: 
             response = await self._client.chat.completions.create(**request_params)

@@ -15,12 +15,13 @@ class StructuredResponse:
         self, 
         class_name: str = "StructuredResponse", 
         definition: dict[str, Any] | None = None, 
-        instance: dict[str, Any] | None = None
+        instance: dict[str, Any] | None = None,
+        native: bool = False
     ):
         self.class_name = class_name
         self.definition: dict[str, Any] = definition or {}
         self.instance: dict[str, Any] = instance or {}        
-
+        self.native = native
     to_prompt = to_prompt
     from_prompt = from_prompt
     add_node = add_node

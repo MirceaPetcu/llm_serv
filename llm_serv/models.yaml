@@ -256,6 +256,16 @@ MODELS:
       input_price_per_1m_tokens: 0.60      
       output_price_per_1m_tokens: 1.70
     config: {}
+
+   # https://www.together.ai/models/deepseek-v3-1
+  TOGETHER/DeepSeek-V3:
+    internal_model_id: deepseek-ai/DeepSeek-V3
+    max_tokens: 128000
+    max_output_tokens: 8000
+    price:
+      input_price_per_1m_tokens: 0.60      
+      output_price_per_1m_tokens: 1.70
+    config: {}
   
   # https://www.together.ai/models/deepseek-v3-1
   TOGETHER/DeepSeek-V3.1-thinking:
@@ -322,6 +332,16 @@ MODELS:
     internal_model_id: Qwen/Qwen3-235B-A22B-Instruct-2507-tput
     max_tokens: 262000
     max_output_tokens: 15000
+    capabilities:
+      structured_output: true
+    price:
+      input_price_per_1m_tokens: 0.2
+      output_price_per_1m_tokens: 0.6
+
+  TOGETHER/Meta-Llama-3.1-8B-Instruct-Turbo:
+    internal_model_id: meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
+    max_tokens: 128000
+    max_output_tokens: 8000
     capabilities:
       structured_output: true
     price:

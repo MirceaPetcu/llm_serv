@@ -7,5 +7,6 @@ def serialize(self) -> str:
         "class_name": self.class_name,
         "definition": self.definition,
         "instance": self.instance,
+        "native": self.native
     }
     return json.dumps(data)

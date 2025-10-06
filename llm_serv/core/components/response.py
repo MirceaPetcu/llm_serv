@@ -15,7 +15,7 @@ from llm_serv.structured_response.model import StructuredResponse
 class LLMResponse(BaseModel):    
     # Input parameters
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    response_model: StructuredResponse | None = None    
+    response_model: StructuredResponse | type[BaseModel] | None = None    
 
     # Output parameters    
     raw_output: str | None = None    
@@ -32,7 +32,7 @@ class LLMResponse(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     
     @field_serializer('response_model')
-    def serialize_response_model(self, value: StructuredResponse | None) -> dict[str, Any] | None:
+    def serialize_response_model(self, value: StructuredResponse | type[BaseModel] | None) -> dict[str, Any] | None:
         """Serialize StructuredResponse using its serialize method."""
         if value is None:
             return None
@@ -42,7 +42,7 @@ class LLMResponse(BaseModel):
     
     @field_validator('response_model', mode='before')
     @classmethod
-    def deserialize_response_model(cls, value: Any) -> StructuredResponse | None:
+    def deserialize_response_model(cls, value: Any) -> StructuredResponse | type[BaseModel] | None:
         """Deserialize StructuredResponse using its deserialize method."""
         if value is None:
             return None
@@ -66,8 +66,12 @@ class LLMResponse(BaseModel):
         
         if self.response_model is None:
             return self.raw_output
-
+        
         assert isinstance(self.response_model, StructuredResponse), f"Response model must be a StructuredResponse instance, got {type(self.response_model)}"  # noqa: E501
+        if self.response_model.native:
+            self.response_model.instance = json.loads(self.raw_output)
+            return self.response_model
+        
         try:
             return self.response_model.from_prompt(self.raw_output)               
         except Exception as e:

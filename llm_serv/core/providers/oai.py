@@ -6,7 +6,7 @@ import asyncio
 import os
 
 from openai import AsyncOpenAI, RateLimitError
-from pydantic import Field
+from pydantic import Field, BaseModel
 
 from llm_serv.logger import logger
 from llm_serv.api import Model
@@ -44,6 +44,110 @@ class OpenAILLMProvider(LLMProvider):
             organization=os.getenv("OPENAI_ORGANIZATION"),
             project=os.getenv("OPENAI_PROJECT")
         )
+
+    def _resolve_ref(self, *, root: dict[str, object], ref: str) -> object:
+        if not ref.startswith("#/"):
+            raise ValueError(f"Unexpected $ref format {ref!r}; Does not start with #/")
+
+        path = ref[2:].split("/")
+        resolved = root
+        for key in path:
+            value = resolved[key]
+            assert isinstance(value, dict), f"encountered non-dictionary entry while resolving {ref} - {resolved}"
+            resolved = value
+
+        return resolved
+
+    def _ensure_strict_json_schema(
+        self,
+        json_schema: object,
+        *,
+        path: tuple[str, ...],
+        root: dict[str, object],
+    ) -> dict[str, any]:
+        """Mutates the given JSON schema to ensure it conforms to the `strict` standard
+        that the API expects.
+        """
+        if not isinstance(json_schema, dict):
+            raise TypeError(f"Expected {json_schema} to be a dictionary; path={path}")
+
+        defs = json_schema.get("$defs")
+        if isinstance(defs, dict):
+            for def_name, def_schema in defs.items():
+                self._ensure_strict_json_schema(def_schema, path=(*path, "$defs", def_name), root=root)
+
+        definitions = json_schema.get("definitions")
+        if isinstance(definitions, dict):
+            for definition_name, definition_schema in definitions.items():
+                self._ensure_strict_json_schema(definition_schema, path=(*path, "definitions", definition_name), root=root)
+
+        typ = json_schema.get("type")
+        if typ == "object" and "additionalProperties" not in json_schema:
+            json_schema["additionalProperties"] = False
+
+        # object types
+        # { 'type': 'object', 'properties': { 'a':  {...} } }
+        properties = json_schema.get("properties")
+        if isinstance(properties, dict):
+            json_schema["required"] = [prop for prop in properties.keys()]
+            json_schema["properties"] = {
+                key: self._ensure_strict_json_schema(prop_schema, path=(*path, "properties", key), root=root)
+                for key, prop_schema in properties.items()
+            }
+
+        # arrays
+        # { 'type': 'array', 'items': {...} }
+        items = json_schema.get("items")
+        if isinstance(items, dict):
+            json_schema["items"] = self._ensure_strict_json_schema(items, path=(*path, "items"), root=root)
+
+        # unions
+        any_of = json_schema.get("anyOf")
+        if isinstance(any_of, list):
+            json_schema["anyOf"] = [
+                self._ensure_strict_json_schema(variant, path=(*path, "anyOf", str(i)), root=root)
+                for i, variant in enumerate(any_of)
+            ]
+
+        # intersections
+        all_of = json_schema.get("allOf")
+        if isinstance(all_of, list):
+            if len(all_of) == 1:
+                json_schema.update(self._ensure_strict_json_schema(all_of[0], path=(*path, "allOf", "0"), root=root))
+                json_schema.pop("allOf")
+            else:
+                json_schema["allOf"] = [
+                    self._ensure_strict_json_schema(entry, path=(*path, "allOf", str(i)), root=root)
+                    for i, entry in enumerate(all_of)
+                ]
+
+        # strip `None` defaults as there's no meaningful distinction here
+        # the schema will still be `nullable` and the model will default
+        # to using `None` anyway
+        if "default" in json_schema and json_schema.get("default", None) is None:
+            json_schema.pop("default")
+
+        # we can't use `$ref`s if there are also other properties defined, e.g.
+        # `{"$ref": "...", "description": "my description"}`
+        #
+        # so we unravel the ref
+        # `{"type": "string", "description": "my description"}`
+        ref = json_schema.get("$ref")
+        if ref and len(json_schema.keys()) > 1:
+            assert isinstance(ref, str), f"Received non-string $ref - {ref}"
+
+            resolved = self._resolve_ref(root=root, ref=ref)
+            if not isinstance(resolved, dict):
+                raise ValueError(f"Expected `$ref: {ref}` to resolved to a dictionary but got {resolved}")
+
+            # properties from the json schema take priority over the ones on the `$ref`
+            json_schema.update({**resolved, **json_schema})
+            json_schema.pop("$ref")
+            # Since the schema expanded from `$ref` might not have `additionalProperties: false` applied,
+            # we call `_ensure_strict_json_schema` again to fix the inlined schema and ensure it's valid.
+            return self._ensure_strict_json_schema(json_schema, path=path, root=root)
+
+        return json_schema
 
     async def _convert(self, request: LLMRequest) -> dict:
         """
@@ -115,7 +219,6 @@ class OpenAILLMProvider(LLMProvider):
             "input": input_messages,
             "max_output_tokens": config["max_output_tokens"],
             "temperature": config["temperature"],            
-            "text": { "format": { "type": "text" } },
         }
 
         if instructions is not None:
@@ -123,6 +226,25 @@ class OpenAILLMProvider(LLMProvider):
 
         if config["top_p"] is not None:
             request_params["top_p"] = config["top_p"]
+            
+        if request.force_native_structured_response:
+            assert isinstance(request.response_model, StructuredResponse), f"Response model must be a StructuredResponse instance, got {type(request.response_model)}"  # noqa: E501
+            assert request.response_model.native, f"Response model must be a native StructuredResponse instance, got {type(request.response_model)}"  # noqa: E501
+            # Handle different types of response models
+            ensured_schema = self._ensure_strict_json_schema(
+                request.response_model.definition, path=(), root=request.response_model.definition
+            )
+            request_params["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": request.response_model.class_name, 
+                    "strict": True,
+                    "schema": ensured_schema,
+                }
+            }
+        else:
+            request_params["text"] = { "format": { "type": "text" } }
+
         
         # call the LLM provider using responses API, no need to retry, it is handled in the base class                   
         try: 
