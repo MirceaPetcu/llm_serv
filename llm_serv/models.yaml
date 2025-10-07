@@ -74,8 +74,8 @@ MODELS:
       structured_output: true 
     price:
       input_price_per_1m_tokens: 0.1
-      cached_input_price_per_1m_tokens: 0.1
-      output_price_per_1m_tokens: 1.6
+      cached_input_price_per_1m_tokens: 0.025
+      output_price_per_1m_tokens: 0.4
     config: {}
 
   OPENAI/gpt-4.1:
@@ -352,17 +352,6 @@ MODELS:
       input_price_per_1m_tokens: 0.2
       output_price_per_1m_tokens: 0.6
 
-  # https://www.together.ai/models/llama-3-1
-  TOGETHER/Meta-Llama-3.1-8B-Instruct-Turbo:
-    internal_model_id: meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
-    max_tokens: 128000
-    max_output_tokens: 8000
-    capabilities:
-      structured_output: true
-    price:
-      input_price_per_1m_tokens: 0.18
-      output_price_per_1m_tokens: 0.18
-
   # https://www.together.ai/models/deepseek-r1-0528-throughput
   TOGETHER/DeepSeek-R1-0528-tput:
     internal_model_id: deepseek-ai/DeepSeek-R1-0528-tput
@@ -373,3 +362,26 @@ MODELS:
     price:
       input_price_per_1m_tokens: 0.55
       output_price_per_1m_tokens: 2.19
+
+  # https://www.together.ai/models/deepcogito/cogito-v2-preview-deepseek-671b
+  TOGETHER/DeepCogito-V2-Preview-DeepSeek-671B:
+    internal_model_id: deepcogito/cogito-v2-preview-deepseek-671b
+    max_tokens: 128000
+    max_output_tokens: 8000
+    capabilities:
+      structured_output: true
+    price:
+      input_price_per_1m_tokens: 1.25
+      output_price_per_1m_tokens: 1.25
+
+  # https://www.together.ai/models/moonshotai/Kimi-K2-Instruct
+  TOGETHER/Kimi-K2-Instruct:
+    internal_model_id: moonshotai/Kimi-K2-Instruct
+    max_tokens: 128000
+    max_output_tokens: 8000
+    capabilities:
+      structured_output: true
+    price:
+      input_price_per_1m_tokens: 1
+      output_price_per_1m_tokens: 3
+          
