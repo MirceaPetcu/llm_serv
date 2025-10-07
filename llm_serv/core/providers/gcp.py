@@ -167,7 +167,7 @@ class GoogleLLMProvider(LLMProvider):
         except Exception as e:
             raise InternalConversionException(f"Failed to convert request: {str(e)}") from e
 
-        if request.response_model.native:
+        if request.response_model is not None and request.response_model.native:
             config['response_mime_type'] = 'application/json'
             config['response_schema'] = request.response_model.definition
 

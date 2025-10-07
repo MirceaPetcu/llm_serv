@@ -227,7 +227,7 @@ class OpenAILLMProvider(LLMProvider):
         if config["top_p"] is not None:
             request_params["top_p"] = config["top_p"]
             
-        if request.response_model.native:
+        if request.response_model is not None and request.response_model.native:
             assert isinstance(request.response_model, StructuredResponse), f"Response model must be a StructuredResponse instance, got {type(request.response_model)}"  # noqa: E501
             # Handle different types of response models
             ensured_schema = self._ensure_strict_json_schema(
