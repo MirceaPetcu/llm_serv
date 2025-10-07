@@ -8,19 +8,29 @@ from pydantic import BaseModel
 from llm_serv.structured_response.utils import extract_constraints, extract_instance_from_model, is_list_type, unwrap_optional
 
 
-def from_basemodel(model: BaseModel | type[BaseModel]):
+def from_basemodel(model: BaseModel | type[BaseModel], native: bool = False):
     """
     Build a StructuredResponse definition from a Pydantic BaseModel type or instance.
-    
+    If native is True, return a native StructuredResponse (JSON schema and class name).
     Args:
         model: Either a BaseModel class or an instance of a BaseModel
+        native: If True, return a native StructuredResponse (JSON schema and class name)
         
     Returns:
         StructuredResponse: A structured response with definition populated from the BaseModel
         and instance data populated if an instance was provided
     """
     from llm_serv.structured_response.model import StructuredResponse
-    
+
+    # return a native StructuredResponse if requested (JSON schema and class name)
+    if native:
+        return StructuredResponse(
+            class_name=model.__name__,
+            definition=model.model_json_schema(),
+            instance={},
+            native=True
+        )
+
     # Determine if we have a type or instance
     is_instance_input = isinstance(model, BaseModel)
     model_type: type[BaseModel] = model.__class__ if is_instance_input else model

@@ -163,7 +163,14 @@ class GoogleLLMProvider(LLMProvider):
             processed = await self._convert(request)
             contents = processed["contents"]
             system_instruction = processed["system_instruction"]
-            config = processed["config"]
+            if request.response_model.native:
+                config = {
+                    'response_mime_type': 'application/json',
+                    'response_schema': request.response_model.definition
+
+                }
+            else:
+                config = processed["config"]
         except Exception as e:
             raise InternalConversionException(f"Failed to convert request: {str(e)}") from e
 

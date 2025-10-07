@@ -56,7 +56,7 @@ class TogetherLLMProvider(LLMProvider):
         # Handle system message if present
         if request.conversation.system is not None and len(request.conversation.system) > 0:
             messages.append({"role": "system", "content": request.conversation.system})
-        else:
+        elif request.response_model.native:
             messages.append({"role": "system", "content": "Respond in JSON format."})
 
         # Process each message
@@ -121,7 +121,7 @@ class TogetherLLMProvider(LLMProvider):
         if self.model.reasoning_effort is not None:
             request_params["reasoning_effort"] = self.model.reasoning_effort
         
-        if request.force_native_structured_response:
+        if request.response_model.native:
             request_params["response_format"] = {
                 "type": "json_schema",
                 "schema": request.response_model.definition

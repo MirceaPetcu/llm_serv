@@ -13,8 +13,7 @@ class LLMRequest(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     request_type: LLMRequestType = LLMRequestType.LLM
     conversation: Conversation    
-    response_model: StructuredResponse | BaseModel | type[BaseModel] | None = None
-    force_native_structured_response: bool = False
+    response_model: StructuredResponse | None = None
     max_completion_tokens: int | None = None
     temperature: float = 1.
     max_retries: int = 5
@@ -31,16 +30,6 @@ class LLMRequest(BaseModel):
             # serialize() returns a JSON string, so we parse it back to dict for Pydantic
             json_string = value.serialize()
             return json.loads(json_string)
-        elif isinstance(value, type) and issubclass(value, BaseModel):
-            # BaseModel class - store class info for reconstruction
-            structured = StructuredResponse(
-                class_name=value.__name__,
-                definition=value.model_json_schema(),
-                instance={},
-                native=True
-            )
-            json_string = structured.serialize()
-            return json.loads(json_string)
         elif isinstance(value, BaseModel):
             # BaseModel instance - convert to StructuredResponse first
             structured = StructuredResponse.from_basemodel(value)
@@ -56,13 +45,6 @@ class LLMRequest(BaseModel):
             return None
         if isinstance(value, StructuredResponse):
             return value
-        if isinstance(value, type) and issubclass(value, BaseModel):
-            return StructuredResponse(
-                class_name=value.__name__,
-                definition=value.model_json_schema(),
-                instance={},
-                native=True
-            )
         if isinstance(value, dict):
             # Convert dict to JSON string for deserialize function
             json_string = json.dumps(value)

@@ -31,10 +31,10 @@ class StructuredResponse:
     __str__ = to_string
     
     @staticmethod
-    def from_basemodel(model):
+    def from_basemodel(model, native: bool = False):
         """Import and call from_basemodel to avoid circular imports."""
         from llm_serv.structured_response.converters.from_basemodel import from_basemodel
-        return from_basemodel(model)
+        return from_basemodel(model, native)
     
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type, handler):
